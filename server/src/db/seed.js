@@ -118,7 +118,9 @@ async function seedStore(def) {
            RETURNING id`,
           [store.id, manager.id, 'S-' + Math.random().toString(36).slice(2, 9).toUpperCase(),
            subtotal, discount, total, costTotal, total - costTotal,
-           Math.random() < 0.75 ? 'cash' : pick(['card', 'transfer']), d, rand(9, 20)]
+           Math.random() < 0.75 ? 'cash' : pick(['card', 'transfer']), d,
+           // today's tickets must not land in the future
+           d === 0 ? rand(9, Math.max(9, new Date().getHours())) : rand(9, 20)]
         );
 
         const values = [];
