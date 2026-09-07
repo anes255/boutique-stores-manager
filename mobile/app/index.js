@@ -11,9 +11,9 @@ export default function Gate() {
   if (booting) {
     return (
       <View style={styles.splash}>
-        <View style={styles.mark}><Text style={styles.markText}>B</Text></View>
-        <Text style={[type.title, { marginTop: 14 }]}>Boutique</Text>
-        <Text style={type.label}>your stores, in one calm place</Text>
+        <View style={styles.mark}><Text style={styles.markText}>م</Text></View>
+        <Text style={[type.title, { marginTop: 14 }]}>متجري</Text>
+        <Text style={type.label}>كل محلاتك في مكان واحد</Text>
         <View style={{ height: 26 }} />
         <Loader text="" />
       </View>
@@ -32,5 +32,5 @@ const styles = StyleSheet.create({
     width: 74, height: 74, borderRadius: 26, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  markText: { fontFamily: font.display, fontSize: 36, color: colors.white },
+  markText: { fontFamily: font.display, fontSize: 34, color: colors.white, lineHeight: 52 },
 });

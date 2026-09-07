@@ -1,26 +1,32 @@
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, I18nManager, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
-import { Fraunces_600SemiBold, Fraunces_700Bold } from '@expo-google-fonts/fraunces';
-import { Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
+import { Cairo_600SemiBold, Cairo_700Bold } from '@expo-google-fonts/cairo';
+import {
+  Tajawal_400Regular, Tajawal_500Medium, Tajawal_700Bold, Tajawal_800ExtraBold,
+} from '@expo-google-fonts/tajawal';
 
 import { AuthProvider } from '../src/auth';
 import { colors } from '../src/theme';
+
+// التطبيق عربي بالكامل. الاتجاه مكتوب داخل الأنماط نفسها،
+// لذلك لا نستعمل forceRTL حتى لا ينقلب التخطيط مرتين.
+I18nManager.allowRTL(true);
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Fraunces_600SemiBold,
-    Fraunces_700Bold,
-    Nunito_400Regular,
-    Nunito_600SemiBold,
-    Nunito_700Bold,
-    Nunito_800ExtraBold,
+    Cairo_600SemiBold,
+    Cairo_700Bold,
+    Tajawal_400Regular,
+    Tajawal_500Medium,
+    Tajawal_700Bold,
+    Tajawal_800ExtraBold,
   });
 
   useEffect(() => {
@@ -36,8 +42,8 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: colors.bg, direction: Platform.OS === 'web' ? 'rtl' : undefined },
+            animation: 'slide_from_left',
           }}
         >
           <Stack.Screen name="index" />

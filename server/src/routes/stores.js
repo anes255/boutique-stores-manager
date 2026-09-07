@@ -13,11 +13,11 @@ router.use(authenticate);
 
 const storeSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  code: z.string().trim().min(2).max(24).regex(/^[a-zA-Z0-9_-]+$/, 'Letters, digits, - and _ only'),
+  code: z.string().trim().min(2).max(24).regex(/^[a-zA-Z0-9_-]+$/, 'حروف لاتينية وأرقام و - و _ فقط'),
   address: z.string().trim().max(240).optional().nullable(),
   city: z.string().trim().max(120).optional().nullable(),
   phone: z.string().trim().max(40).optional().nullable(),
-  currency: z.string().trim().min(1).max(8).default('DZD'),
+  currency: z.string().trim().min(1).max(8).default('دج'),
   color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).default('#E8813A'),
   monthly_target: z.coerce.number().min(0).default(0),
   is_active: z.boolean().default(true),
@@ -56,10 +56,10 @@ router.get('/', wrap(async (req, res) => {
 // ------------------------------------------------------------ single store
 router.get('/:id', wrap(async (req, res) => {
   if (req.user.role !== 'admin' && req.user.store_id !== req.params.id) {
-    throw forbidden('This store is not yours');
+    throw forbidden('هذا المحل ليس محلك');
   }
   const store = await one('SELECT * FROM stores WHERE id = $1', [req.params.id]);
-  if (!store) throw notFound('Store not found');
+  if (!store) throw notFound('المحل غير موجود');
   const staff = await many(
     `SELECT id, full_name, email, role, phone, is_active, last_login_at
        FROM users WHERE store_id = $1 ORDER BY role, full_name`,
@@ -72,7 +72,7 @@ router.get('/:id', wrap(async (req, res) => {
 router.post('/', adminOnly, writeLimiter, validate(storeSchema), wrap(async (req, res) => {
   const b = req.body;
   const dup = await one('SELECT id FROM stores WHERE lower(code) = lower($1)', [b.code]);
-  if (dup) throw conflict('A store already uses that code');
+  if (dup) throw conflict('هذا الرمز مستعمل في محل آخر');
 
   const store = await one(
     `INSERT INTO stores (name, code, address, city, phone, currency, color, monthly_target, is_active)
@@ -93,12 +93,12 @@ router.patch('/:id', adminOnly, writeLimiter, validate(storeSchema.partial()), w
   for (const f of fields) {
     if (req.body[f] !== undefined) { values.push(req.body[f]); sets.push(`${f} = $${values.length}`); }
   }
-  if (!sets.length) throw badRequest('Nothing to update');
+  if (!sets.length) throw badRequest('لا يوجد شيء لتحديثه');
   values.push(req.params.id);
   const store = await one(
     `UPDATE stores SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values
   );
-  if (!store) throw notFound('Store not found');
+  if (!store) throw notFound('المحل غير موجود');
   req.storeId = store.id;
   audit(req, 'store.update', 'store', store.id, req.body);
   res.json({ store });
@@ -107,7 +107,7 @@ router.patch('/:id', adminOnly, writeLimiter, validate(storeSchema.partial()), w
 // ------------------------------------------------------------ delete store
 router.delete('/:id', adminOnly, adminSensitiveLimiter, wrap(async (req, res) => {
   const store = await one('SELECT * FROM stores WHERE id = $1', [req.params.id]);
-  if (!store) throw notFound('Store not found');
+  if (!store) throw notFound('المحل غير موجود');
   await query('DELETE FROM stores WHERE id = $1', [req.params.id]);
   audit(req, 'store.delete', 'store', req.params.id, { name: store.name });
   res.json({ ok: true });
@@ -116,8 +116,9 @@ router.delete('/:id', adminOnly, adminSensitiveLimiter, wrap(async (req, res) =>
 // ------------------------------------------------------------ store accounts
 const accountSchema = z.object({
   full_name: z.string().trim().min(2).max(120),
-  email: z.string().trim().email('Enter a valid email').max(160),
-  password: z.string().min(8, 'Use at least 8 characters').max(200),
+  // اسم مستخدم أو رقم هاتف أو بريد — المهم أن يكون بدون فراغات
+  email: z.string().trim().min(3).max(160).regex(/^\S+$/, 'أدخل اسم مستخدم أو بريدا صالحا (بدون فراغات)'),
+  password: z.string().min(8, 'استعمل 8 خانات على الأقل').max(200),
   role: z.enum(['manager', 'staff']).default('manager'),
   phone: z.string().trim().max(40).optional().nullable(),
   create_employee: z.boolean().default(true),
@@ -128,11 +129,11 @@ const accountSchema = z.object({
 /** Admin assigns login credentials that unlock exactly one store. */
 router.post('/:id/accounts', adminOnly, adminSensitiveLimiter, validate(accountSchema), wrap(async (req, res) => {
   const store = await one('SELECT id, name FROM stores WHERE id = $1', [req.params.id]);
-  if (!store) throw notFound('Store not found');
+  if (!store) throw notFound('المحل غير موجود');
 
   const email = req.body.email.toLowerCase();
   const dup = await one('SELECT id FROM users WHERE lower(email) = $1', [email]);
-  if (dup) throw conflict('That email is already used by another account');
+  if (dup) throw conflict('اسم المستخدم هذا مستعمل في حساب آخر');
 
   const hash = await bcrypt.hash(req.body.password, 12);
   const user = await tx(async (c) => {
@@ -148,7 +149,7 @@ router.post('/:id/accounts', adminOnly, adminSensitiveLimiter, validate(accountS
         `INSERT INTO employees (store_id, user_id, full_name, job_title, phone, email, monthly_salary, hired_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7, CURRENT_DATE)`,
         [store.id, created.id, req.body.full_name,
-         req.body.job_title || (req.body.role === 'manager' ? 'Store manager' : 'Sales assistant'),
+         req.body.job_title || (req.body.role === 'manager' ? 'مسؤول المحل' : 'بائع'),
          req.body.phone || null, email, req.body.monthly_salary]
       );
     }
@@ -167,7 +168,7 @@ router.post('/:id/accounts/:userId/password', adminOnly, adminSensitiveLimiter,
   validate(resetSchema), wrap(async (req, res) => {
     const user = await one('SELECT id, email FROM users WHERE id = $1 AND store_id = $2',
       [req.params.userId, req.params.id]);
-    if (!user) throw notFound('Account not found in this store');
+    if (!user) throw notFound('الحساب غير موجود في هذا المحل');
     const hash = await bcrypt.hash(req.body.password, 12);
     await query('UPDATE users SET password_hash = $1, must_change_password = true, failed_attempts = 0, locked_until = NULL WHERE id = $2',
       [hash, user.id]);
@@ -185,7 +186,7 @@ router.patch('/:id/accounts/:userId', adminOnly, adminSensitiveLimiter,
       'UPDATE users SET is_active = $1 WHERE id = $2 AND store_id = $3 RETURNING id, email, is_active',
       [req.body.is_active, req.params.userId, req.params.id]
     );
-    if (!user) throw notFound('Account not found in this store');
+    if (!user) throw notFound('الحساب غير موجود في هذا المحل');
     if (!user.is_active) await revokeAllForUser(user.id);
     req.storeId = req.params.id;
     audit(req, 'store.account_toggled', 'user', user.id, { is_active: user.is_active });
@@ -195,7 +196,7 @@ router.patch('/:id/accounts/:userId', adminOnly, adminSensitiveLimiter,
 router.delete('/:id/accounts/:userId', adminOnly, adminSensitiveLimiter, wrap(async (req, res) => {
   const user = await one('SELECT id, email FROM users WHERE id = $1 AND store_id = $2',
     [req.params.userId, req.params.id]);
-  if (!user) throw notFound('Account not found in this store');
+  if (!user) throw notFound('الحساب غير موجود في هذا المحل');
   await query('DELETE FROM users WHERE id = $1', [user.id]);
   req.storeId = req.params.id;
   audit(req, 'store.account_deleted', 'user', user.id, { email: user.email });

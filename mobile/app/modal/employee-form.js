@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Alert } from 'react-native';
+import { View, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { api } from '../../src/api';
-import { colors, money, type } from '../../src/theme';
+import { colors, money, periodLabel, row, shortDate } from '../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
-  SectionTitle, Switch, ListRow, Badge,
+  SectionTitle, Switch, ListRow,
 } from '../../src/components/ui';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -20,7 +20,7 @@ export default function EmployeeForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [payments, setPayments] = useState([]);
-  const [currency, setCurrency] = useState('DZD');
+  const [currency, setCurrency] = useState(undefined);
 
   const [form, setForm] = useState({
     full_name: '', job_title: '', phone: '', email: '',
@@ -40,7 +40,7 @@ export default function EmployeeForm() {
           hired_at: (e.hired_at || today()).slice(0, 10), is_active: e.is_active, note: e.note || '',
         });
         setPayments(data.payments || []);
-        setCurrency(e.currency || 'DZD');
+        setCurrency(e.currency);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -51,7 +51,7 @@ export default function EmployeeForm() {
 
   async function save() {
     setError(null);
-    if (form.full_name.trim().length < 2) return setError('Enter their name');
+    if (form.full_name.trim().length < 2) return setError('أدخل اسمه الكامل');
     setSaving(true);
     try {
       const payload = {
@@ -76,10 +76,10 @@ export default function EmployeeForm() {
   }
 
   function remove() {
-    Alert.alert('Remove from the team?', `${form.full_name} and their salary history are deleted.`, [
-      { text: 'Keep', style: 'cancel' },
+    Alert.alert('حذفه من الفريق؟', `${form.full_name} وسجل رواتبه سيُحذفان.`, [
+      { text: 'إبقاء', style: 'cancel' },
       {
-        text: 'Remove',
+        text: 'حذف',
         style: 'destructive',
         onPress: async () => {
           try { await api.del(`/api/employees/${id}`); router.back(); }
@@ -89,55 +89,55 @@ export default function EmployeeForm() {
     ]);
   }
 
-  if (loading) return <Loader text="Loading…" />;
+  if (loading) return <Loader text="جاري التحميل…" />;
 
   return (
     <>
-      <Header title={editing ? 'Edit team member' : 'Add to the team'}
-        subtitle={editing ? form.full_name : 'Payroll'} onBack={() => router.back()} />
+      <Header title={editing ? 'تعديل موظف' : 'إضافة موظف'}
+        subtitle={editing ? form.full_name : 'قائمة الأجور'} onBack={() => router.back()} />
       <KeyboardScreen>
         <ErrorNote message={error} />
 
         <Card style={{ gap: 14 }}>
-          <Field label="Full name" value={form.full_name} onChangeText={set('full_name')}
-            placeholder="Sara Meziane" />
-          <Field label="Job title" value={form.job_title} onChangeText={set('job_title')}
-            placeholder="Sales assistant" />
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Field style={{ flex: 1 }} label="Phone" value={form.phone} onChangeText={set('phone')}
-              placeholder="+213 …" keyboardType="phone-pad" />
-            <Field style={{ flex: 1 }} label="Email" value={form.email} onChangeText={set('email')}
-              placeholder="Optional" autoCapitalize="none" keyboardType="email-address" />
+          <Field label="الاسم الكامل" value={form.full_name} onChangeText={set('full_name')}
+            placeholder="مثال: سارة مزيان" />
+          <Field label="الوظيفة" value={form.job_title} onChangeText={set('job_title')}
+            placeholder="بائعة" />
+          <View style={{ flexDirection: row, gap: 12 }}>
+            <Field style={{ flex: 1 }} label="الهاتف" value={form.phone} onChangeText={set('phone')}
+              placeholder="0770000000" keyboardType="phone-pad" />
+            <Field style={{ flex: 1 }} label="البريد" value={form.email} onChangeText={set('email')}
+              placeholder="اختياري" autoCapitalize="none" keyboardType="email-address" />
           </View>
         </Card>
 
         <Card style={{ gap: 14 }}>
-          <SectionTitle icon="dollar-sign">Salary</SectionTitle>
-          <Field label="Monthly salary" value={form.monthly_salary} onChangeText={set('monthly_salary')}
+          <SectionTitle icon="dollar-sign">الراتب</SectionTitle>
+          <Field label="الراتب الشهري" value={form.monthly_salary} onChangeText={set('monthly_salary')}
             placeholder="0" keyboardType="numeric" />
-          <Field label="Started on" value={form.hired_at} onChangeText={set('hired_at')}
+          <Field label="تاريخ البداية" value={form.hired_at} onChangeText={set('hired_at')}
             placeholder="YYYY-MM-DD" autoCorrect={false} />
-          <Switch label="Still working here" value={form.is_active} onChange={set('is_active')} />
+          <Switch label="ما زال يعمل هنا" value={form.is_active} onChange={set('is_active')} />
         </Card>
 
         <Card style={{ gap: 12 }}>
-          <Field label="Notes" value={form.note} onChangeText={set('note')}
-            placeholder="Days off, agreements, anything useful" multiline />
+          <Field label="ملاحظات" value={form.note} onChangeText={set('note')}
+            placeholder="أيام الراحة، الاتفاقات، أي شيء مفيد" multiline />
         </Card>
 
         {editing ? (
-          <Button title="Pay a salary" icon="dollar-sign" variant="sage"
+          <Button title="دفع راتب" icon="dollar-sign" variant="sage"
             onPress={() => router.push({ pathname: '/modal/salary', params: { id, name: form.full_name } })} />
         ) : null}
 
         {editing && payments.length ? (
           <Card>
-            <SectionTitle icon="calendar">Salary history</SectionTitle>
+            <SectionTitle icon="calendar">سجل الرواتب</SectionTitle>
             {payments.slice(0, 12).map((p, i, arr) => (
               <ListRow
                 key={p.id}
-                title={p.period}
-                subtitle={`Paid ${new Date(p.paid_at).toLocaleDateString()}${Number(p.bonus) > 0 ? ` · bonus ${Number(p.bonus)}` : ''}`}
+                title={periodLabel(p.period)}
+                subtitle={`دُفع في ${shortDate(p.paid_at)}${Number(p.bonus) > 0 ? ` · منحة ${Number(p.bonus)}` : ''}`}
                 icon="check-circle"
                 iconTone={colors.good}
                 iconSoft={colors.goodSoft}
@@ -148,9 +148,9 @@ export default function EmployeeForm() {
           </Card>
         ) : null}
 
-        <Button title={editing ? 'Save changes' : 'Add to the team'} icon="check"
+        <Button title={editing ? 'حفظ التعديلات' : 'إضافة إلى الفريق'} icon="check"
           onPress={save} loading={saving} />
-        {editing ? <Button title="Remove from team" icon="trash-2" variant="danger" onPress={remove} /> : null}
+        {editing ? <Button title="حذف من الفريق" icon="trash-2" variant="danger" onPress={remove} /> : null}
       </KeyboardScreen>
     </>
   );

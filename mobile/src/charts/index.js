@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Svg, {
   Path, Line, Rect, Circle, G, Defs, LinearGradient, Stop, Text as SvgText,
 } from 'react-native-svg';
-import { colors, compact, font, radius, series as palette, type } from '../theme';
+import { colors, compact, font, radius, row, series as palette, type } from '../theme';
 
 /* Small helpers ------------------------------------------------------ */
 
@@ -128,7 +128,7 @@ export function TrendChart({
 
       {/* transparent touch strips so any point can be inspected */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <View style={{ flexDirection: 'row', height: height - padB, marginLeft: padL, marginRight: padR }}>
+        <View style={{ flexDirection: row, height: height - padB, marginLeft: padL, marginRight: padR }}>
           {data.map((_, i) => (
             <Pressable key={i} style={{ flex: 1 }} onPressIn={() => setActive(i)} onPressOut={() => setActive(null)} />
           ))}
@@ -207,7 +207,7 @@ export function BarChart({ data = [], height = 180, color = colors.primary, form
         })}
       </Svg>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <View style={{ flexDirection: 'row', height: height - padB }}>
+        <View style={{ flexDirection: row, height: height - padB }}>
           {data.map((_, i) => (
             <Pressable key={i} style={{ flex: 1 }} onPressIn={() => setActive(i)} onPressOut={() => setActive(null)} />
           ))}
@@ -248,7 +248,7 @@ export function DonutChart({ data = [], size = 168, thickness = 26, centerLabel,
   const shown = active != null ? arcs[active] : null;
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+    <View style={{ flexDirection: row, alignItems: 'center', gap: 16 }}>
       <Svg width={size} height={size}>
         <G transform={`rotate(-90 ${cx} ${cy})`}>
           <Circle cx={cx} cy={cy} r={r} stroke={colors.lineSoft} strokeWidth={thickness} fill="none" />
@@ -302,7 +302,7 @@ export function RankBars({ data = [], formatValue = compact, color = colors.prim
         const tone = colorKey && d[colorKey] ? d[colorKey] : (d.color || color);
         return (
           <View key={i} style={{ gap: 5 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: row, alignItems: 'center', gap: 8 }}>
               <Text style={[type.tiny, { color: colors.inkSoft, flex: 1 }]} numberOfLines={1}>{d.label}</Text>
               <Text style={[type.tiny, { fontFamily: font.bodyBold, color: colors.ink }]}>
                 {formatValue(d.value)}
@@ -354,8 +354,10 @@ export function Gauge({ value = 0, size = 150, thickness = 16, color = colors.pr
         <G transform={`rotate(180 ${cx} ${cy})`}>
           <Circle cx={cx} cy={cy} r={r} stroke={colors.lineSoft} strokeWidth={thickness}
             strokeDasharray={`${half} ${half * 2}`} strokeLinecap="round" fill="none" />
-          <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={thickness}
-            strokeDasharray={`${(clamped / 100) * half} ${half * 3}`} strokeLinecap="round" fill="none" />
+          {clamped > 0 ? (
+            <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={thickness}
+              strokeDasharray={`${(clamped / 100) * half} ${half * 3}`} strokeLinecap="round" fill="none" />
+          ) : null}
         </G>
         <SvgText x={cx} y={cy - 6} fontSize="22" fill={colors.ink} textAnchor="middle" fontFamily={font.bodyBlack}>
           {clamped.toFixed(0)}%
@@ -372,15 +374,15 @@ export function Gauge({ value = 0, size = 150, thickness = 16, color = colors.pr
 function ChartEmpty({ height }) {
   return (
     <View style={[styles.chartEmpty, { height }]}>
-      <Text style={type.tiny}>No data for this period yet</Text>
+      <Text style={type.tiny}>لا توجد بيانات لهذه الفترة بعد</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tipRow: { flexDirection: row, alignItems: 'center', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 6, justifyContent: 'center' },
+  legend: { flexDirection: row, flexWrap: 'wrap', gap: 14, marginTop: 6, justifyContent: 'center' },
   tooltip: {
     marginTop: 6, alignSelf: 'center', backgroundColor: colors.bgAlt,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.md, gap: 2,

@@ -16,7 +16,7 @@ const itemSchema = z.object({
   size: z.string().trim().max(40).optional().nullable(),
   color: z.string().trim().max(60).optional().nullable(),
   unit: z.string().trim().max(24).optional().nullable(),
-  qty: z.coerce.number().positive('Quantity must be above zero').max(100000),
+  qty: z.coerce.number().positive('الكمية يجب أن تكون أكبر من الصفر').max(100000),
   unit_price: z.coerce.number().min(0),
 });
 
@@ -27,7 +27,7 @@ const saleSchema = z.object({
   discount: z.coerce.number().min(0).default(0),
   payment_method: z.enum(['cash', 'card', 'transfer', 'other']).default('cash'),
   note: z.string().trim().max(300).optional().nullable(),
-  items: z.array(itemSchema).min(1, 'Add at least one item').max(100),
+  items: z.array(itemSchema).min(1, 'أضف قطعة واحدة على الأقل').max(100),
 });
 
 const listSchema = z.object({
@@ -63,8 +63,8 @@ router.get('/:id', wrap(async (req, res) => {
        FROM sales s LEFT JOIN users u ON u.id = s.user_id
        LEFT JOIN stores st ON st.id = s.store_id WHERE s.id = $1`, [req.params.id]
   );
-  if (!sale) throw notFound('Sale not found');
-  if (req.user.role !== 'admin' && sale.store_id !== req.user.store_id) throw notFound('Sale not found');
+  if (!sale) throw notFound('عملية البيع غير موجودة');
+  if (req.user.role !== 'admin' && sale.store_id !== req.user.store_id) throw notFound('عملية البيع غير موجودة');
   const items = await many('SELECT * FROM sale_items WHERE sale_id = $1', [sale.id]);
   res.json({ sale, items });
 }));
@@ -84,10 +84,10 @@ router.post('/', writeLimiter, validate(saleSchema), scopeStore(), wrap(async (r
         [ids]
       );
       for (const r of rows) {
-        if (r.store_id !== storeId) throw badRequest(`"${r.name}" does not belong to this store`);
+        if (r.store_id !== storeId) throw badRequest(`"${r.name}" لا ينتمي إلى هذا المحل`);
         stockMap.set(r.id, r);
       }
-      if (rows.length !== ids.length) throw badRequest('One of the products no longer exists');
+      if (rows.length !== ids.length) throw badRequest('أحد المنتجات لم يعد موجودا');
     }
 
     let subtotal = 0;
@@ -110,7 +110,7 @@ router.post('/', writeLimiter, validate(saleSchema), scopeStore(), wrap(async (r
     for (const [pid, qty] of wanted) {
       const p = stockMap.get(pid);
       if (Number(p.stock) < qty) {
-        throw badRequest(`Only ${Number(p.stock)} left of "${p.name}"`);
+        throw badRequest(`بقي ${Number(p.stock)} فقط من "${p.name}"`);
       }
     }
 
@@ -145,7 +145,7 @@ router.post('/', writeLimiter, validate(saleSchema), scopeStore(), wrap(async (r
       await c.query(
         `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
          VALUES ($1,$2,$3,'out',$4,$5,$6)`,
-        [storeId, pid, req.user.id, -qty, rows[0].stock, `Sale ${reference}`]
+        [storeId, pid, req.user.id, -qty, rows[0].stock, `بيع ${reference}`]
       );
     }
 
@@ -159,9 +159,9 @@ router.post('/', writeLimiter, validate(saleSchema), scopeStore(), wrap(async (r
 // ------------------------------------------------------------ refund
 router.post('/:id/refund', writeLimiter, wrap(async (req, res) => {
   const sale = await one('SELECT * FROM sales WHERE id = $1', [req.params.id]);
-  if (!sale) throw notFound('Sale not found');
-  if (req.user.role !== 'admin' && sale.store_id !== req.user.store_id) throw notFound('Sale not found');
-  if (sale.status === 'refunded') throw badRequest('This sale is already refunded');
+  if (!sale) throw notFound('عملية البيع غير موجودة');
+  if (req.user.role !== 'admin' && sale.store_id !== req.user.store_id) throw notFound('عملية البيع غير موجودة');
+  if (sale.status === 'refunded') throw badRequest('هذه العملية مُرجعة من قبل');
   req.storeId = sale.store_id;
 
   await tx(async (c) => {
@@ -177,7 +177,7 @@ router.post('/:id/refund', writeLimiter, wrap(async (req, res) => {
         await c.query(
           `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
            VALUES ($1,$2,$3,'in',$4,$5,$6)`,
-          [sale.store_id, i.product_id, req.user.id, i.qty, rows[0].stock, `Refund ${sale.reference}`]
+          [sale.store_id, i.product_id, req.user.id, i.qty, rows[0].stock, `إرجاع ${sale.reference}`]
         );
       }
     }

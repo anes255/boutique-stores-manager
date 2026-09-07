@@ -3,10 +3,10 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { api } from '../../src/api';
-import { colors, money, radius, spacing, type } from '../../src/theme';
+import { colors, money, radius, row, spacing, type } from '../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
-  SectionTitle, Chips, EmptyState, Feather, Badge, tap,
+  SectionTitle, EmptyState, Feather, Badge, tap,
 } from '../../src/components/ui';
 
 export default function Purchase() {
@@ -17,7 +17,7 @@ export default function Purchase() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
-  const [currency, setCurrency] = useState('DZD');
+  const [currency, setCurrency] = useState(undefined);
 
   const [supplier, setSupplier] = useState('');
   const [note, setNote] = useState('');
@@ -25,7 +25,7 @@ export default function Purchase() {
   const [search, setSearch] = useState('');
   const [picking, setPicking] = useState(false);
 
-  // fields for a brand-new product line
+  // حقول منتج جديد تماما
   const [newName, setNewName] = useState('');
   const [newSize, setNewSize] = useState('');
   const [newColor, setNewColor] = useState('');
@@ -38,7 +38,7 @@ export default function Purchase() {
           api.get(`/api/stores/${storeId}`),
         ]);
         setProducts(p.products || []);
-        setCurrency(s.store?.currency || 'DZD');
+        setCurrency(s.store?.currency);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -69,7 +69,7 @@ export default function Purchase() {
         key: p.id,
         product_id: p.id,
         name: p.name,
-        detail: [p.size && `size ${p.size}`, p.color].filter(Boolean).join(' · '),
+        detail: [p.size && `مقاس ${p.size}`, p.color].filter(Boolean).join(' · '),
         qty: '1',
         unit_cost: String(p.cost_price ?? ''),
       }];
@@ -77,7 +77,7 @@ export default function Purchase() {
   }
 
   function addNew() {
-    if (!newName.trim()) return setError('Give the new product a name');
+    if (!newName.trim()) return setError('أعطِ المنتج الجديد اسما');
     setError(null);
     setLines((prev) => [...prev, {
       key: `new-${Date.now()}`,
@@ -85,7 +85,7 @@ export default function Purchase() {
       name: newName.trim(),
       size: newSize.trim() || null,
       color: newColor.trim() || null,
-      detail: 'New product',
+      detail: 'منتج جديد',
       qty: '1',
       unit_cost: '',
       sell_price: '',
@@ -100,10 +100,10 @@ export default function Purchase() {
 
   async function save() {
     setError(null);
-    if (!lines.length) return setError('Add at least one line');
+    if (!lines.length) return setError('أضف سطرا واحدا على الأقل');
     for (const l of lines) {
-      if (!(Number(l.qty) > 0)) return setError(`How many of "${l.name}"?`);
-      if (!(Number(l.unit_cost) >= 0)) return setError(`What did "${l.name}" cost you?`);
+      if (!(Number(l.qty) > 0)) return setError(`كم قطعة من "${l.name}"؟`);
+      if (!(Number(l.unit_cost) >= 0)) return setError(`بكم اشتريت "${l.name}"؟`);
     }
     setSaving(true);
     try {
@@ -129,30 +129,30 @@ export default function Purchase() {
     }
   }
 
-  if (loading) return <Loader text="Loading your catalogue…" />;
+  if (loading) return <Loader text="جاري تحميل منتجاتك…" />;
 
   return (
     <>
-      <Header title="Restock" subtitle="What you bought" onBack={() => router.back()} />
+      <Header title="تموين" subtitle="البضاعة التي اشتريتها" onBack={() => router.back()} />
       <KeyboardScreen>
         <ErrorNote message={error} />
 
         <Card style={{ gap: 14 }}>
-          <Field label="Supplier" value={supplier} onChangeText={setSupplier}
-            placeholder="Atlas Textile" />
-          <Field label="Note (optional)" value={note} onChangeText={setNote}
-            placeholder="Invoice number, delivery details…" />
+          <Field label="المورّد" value={supplier} onChangeText={setSupplier}
+            placeholder="اسم المورّد" />
+          <Field label="ملاحظة (اختياري)" value={note} onChangeText={setNote}
+            placeholder="رقم الفاتورة، تفاصيل التسليم…" />
         </Card>
 
         <Card>
-          <SectionTitle icon="package" action={picking ? 'Close' : 'Pick a product'}
+          <SectionTitle icon="package" action={picking ? 'إغلاق' : 'اختيار منتج'}
             onAction={() => setPicking((v) => !v)}>
-            Lines ({lines.length})
+            الأسطر ({lines.length})
           </SectionTitle>
 
           {picking ? (
             <View style={{ gap: 10, marginTop: 12 }}>
-              <Field value={search} onChangeText={setSearch} placeholder="Search your products…"
+              <Field value={search} onChangeText={setSearch} placeholder="ابحث في منتجاتك…"
                 autoCorrect={false} />
               <View style={styles.pickList}>
                 {filtered.map((p) => (
@@ -160,71 +160,73 @@ export default function Purchase() {
                     <View style={{ flex: 1 }}>
                       <Text style={type.bodyStrong} numberOfLines={1}>{p.name}</Text>
                       <Text style={type.tiny}>
-                        {[p.size && `size ${p.size}`, p.color].filter(Boolean).join(' · ')} · {Number(p.stock)} in stock
+                        {[p.size && `مقاس ${p.size}`, p.color].filter(Boolean).join(' · ')} · {Number(p.stock)} متوفر
                       </Text>
                     </View>
                     <Feather name="plus-circle" size={19} color={colors.primary} />
                   </Pressable>
                 ))}
                 {filtered.length === 0 ? (
-                  <Text style={[type.tiny, { padding: 12 }]}>Nothing found. Add it as a new product below.</Text>
+                  <Text style={[type.tiny, { padding: 12 }]}>لم نجد شيئا. أضفه كمنتج جديد بالأسفل.</Text>
                 ) : null}
               </View>
 
               <View style={styles.newBox}>
-                <Text style={[type.label, { color: colors.inkSoft }]}>Or add something new</Text>
-                <Field value={newName} onChangeText={setNewName} placeholder="Product name" />
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <Field style={{ flex: 1 }} value={newSize} onChangeText={setNewSize} placeholder="Size" />
-                  <Field style={{ flex: 1 }} value={newColor} onChangeText={setNewColor} placeholder="Colour" />
+                <Text style={[type.label, { color: colors.inkSoft }]}>أو أضف شيئا جديدا</Text>
+                <Field value={newName} onChangeText={setNewName} placeholder="اسم المنتج" />
+                <View style={{ flexDirection: row, gap: 10 }}>
+                  <Field style={{ flex: 1 }} value={newSize} onChangeText={setNewSize} placeholder="المقاس" />
+                  <Field style={{ flex: 1 }} value={newColor} onChangeText={setNewColor} placeholder="اللون" />
                 </View>
-                <Button title="Add as a new line" icon="plus" small variant="soft" onPress={addNew} />
+                <Button title="إضافته كسطر جديد" icon="plus" small variant="soft" onPress={addNew} />
               </View>
             </View>
           ) : null}
 
           {lines.length === 0 && !picking ? (
-            <EmptyState icon="truck" title="Nothing added yet"
-              text="Pick products you already sell, or create new ones as you unpack the delivery."
-              actionLabel="Pick a product" onAction={() => setPicking(true)} />
+            <EmptyState icon="truck" title="لم تضف شيئا بعد"
+              text="اختر منتجات تبيعها أصلا، أو أنشئ منتجات جديدة وأنت تفرغ البضاعة."
+              actionLabel="اختيار منتج" onAction={() => setPicking(true)} />
           ) : null}
 
           {lines.map((l) => (
             <View key={l.key} style={styles.line}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flexDirection: row, alignItems: 'center', gap: 8 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={type.bodyStrong} numberOfLines={1}>{l.name}</Text>
                   <Text style={type.tiny}>{l.detail}</Text>
                 </View>
-                {!l.product_id ? <Badge text="New" tone={colors.sage} soft={colors.sageSoft} /> : null}
+                {!l.product_id ? <Badge text="جديد" tone={colors.sage} soft={colors.sageSoft} /> : null}
                 <Pressable onPress={() => removeLine(l.key)} hitSlop={8}>
                   <Feather name="x" size={17} color={colors.inkMuted} />
                 </Pressable>
               </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Field style={{ flex: 1 }} label="How many" value={l.qty}
+              <View style={{ flexDirection: row, gap: 10 }}>
+                <Field style={{ flex: 1 }} label="الكمية" value={l.qty}
                   onChangeText={updateLine(l.key, 'qty')} keyboardType="numeric" placeholder="0" />
-                <Field style={{ flex: 1 }} label="Cost each" value={l.unit_cost}
+                <Field style={{ flex: 1 }} label="سعر الشراء" value={l.unit_cost}
                   onChangeText={updateLine(l.key, 'unit_cost')} keyboardType="numeric" placeholder="0" />
                 {!l.product_id ? (
-                  <Field style={{ flex: 1 }} label="Sell for" value={l.sell_price}
-                    onChangeText={updateLine(l.key, 'sell_price')} keyboardType="numeric" placeholder="auto" />
+                  <Field style={{ flex: 1 }} label="سعر البيع" value={l.sell_price}
+                    onChangeText={updateLine(l.key, 'sell_price')} keyboardType="numeric" placeholder="تلقائي" />
                 ) : null}
               </View>
-              <Text style={[type.tiny, { textAlign: 'right' }]}>
-                line total {money((Number(l.qty) || 0) * (Number(l.unit_cost) || 0), currency)}
+              <Text style={[type.tiny, { textAlign: 'left' }]}>
+                مجموع السطر {money((Number(l.qty) || 0) * (Number(l.unit_cost) || 0), currency)}
               </Text>
             </View>
           ))}
         </Card>
 
         <Card style={styles.totalBox}>
-          <Text style={type.label}>Total spent</Text>
-          <Text style={[type.hero, { fontSize: 30 }]}>{money(total, currency)}</Text>
-          <Text style={type.tiny}>Stock levels and average costs update automatically.</Text>
+          <Text style={type.label}>المبلغ الإجمالي</Text>
+          <Text style={[type.hero, { fontSize: 28 }]}>{money(total, currency)}</Text>
+          <Text style={[type.tiny, { textAlign: 'center' }]}>
+            سيتم تحديث الكميات ومعدل سعر الشراء تلقائيا.
+          </Text>
         </Card>
 
-        <Button title="Save restock" icon="check" onPress={save} loading={saving} />
+        <Button title="حفظ التموين" icon="check" onPress={save} loading={saving} />
       </KeyboardScreen>
     </>
   );
@@ -236,7 +238,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.lineSoft, maxHeight: 260, overflow: 'hidden',
   },
   pickRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12,
+    flexDirection: row, alignItems: 'center', gap: 10, padding: 12,
     borderBottomWidth: 1, borderBottomColor: colors.lineSoft,
   },
   newBox: {

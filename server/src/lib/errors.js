@@ -6,11 +6,11 @@ class ApiError extends Error {
   }
 }
 
-const badRequest = (m, c) => new ApiError(400, m || 'Bad request', c);
-const unauthorized = (m) => new ApiError(401, m || 'Not authenticated', 'unauthorized');
-const forbidden = (m) => new ApiError(403, m || 'Not allowed', 'forbidden');
-const notFound = (m) => new ApiError(404, m || 'Not found', 'not_found');
-const conflict = (m) => new ApiError(409, m || 'Conflict', 'conflict');
+const badRequest = (m, c) => new ApiError(400, m || 'طلب غير صالح', c);
+const unauthorized = (m) => new ApiError(401, m || 'لم تسجّل الدخول', 'unauthorized');
+const forbidden = (m) => new ApiError(403, m || 'غير مسموح', 'forbidden');
+const notFound = (m) => new ApiError(404, m || 'غير موجود', 'not_found');
+const conflict = (m) => new ApiError(409, m || 'تعارض في البيانات', 'conflict');
 
 /** Wraps async route handlers so rejections reach the error middleware. */
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);

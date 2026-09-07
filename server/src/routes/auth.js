@@ -47,14 +47,14 @@ router.post('/login', loginLimiter, validate(loginSchema), wrap(async (req, res)
   // Constant-ish response for unknown accounts.
   if (!user) {
     await bcrypt.compare(req.body.password, '$2a$12$xxxxxxxxxxxxxxxxxxxxxuGZQ8oS8m2qHkPmVJ2q0z3lqQ0wZ0y2');
-    throw unauthorized('Email or password is incorrect');
+    throw unauthorized('اسم المستخدم أو كلمة السر غير صحيحة');
   }
 
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    throw unauthorized(`Account temporarily locked. Try again in ${LOCK_MINUTES} minutes.`);
+    throw unauthorized(`الحساب مقفل مؤقتا. أعد المحاولة بعد ${LOCK_MINUTES} دقيقة.`);
   }
-  if (!user.is_active) throw unauthorized('This account has been disabled by the owner');
-  if (user.store_id && user.store_active === false) throw unauthorized('This store is currently closed');
+  if (!user.is_active) throw unauthorized('تم تعطيل هذا الحساب من طرف المالك');
+  if (user.store_id && user.store_active === false) throw unauthorized('هذا المحل مغلق حاليا');
 
   const ok = await bcrypt.compare(req.body.password, user.password_hash);
   if (!ok) {
@@ -62,7 +62,7 @@ router.post('/login', loginLimiter, validate(loginSchema), wrap(async (req, res)
     const lock = attempts >= MAX_ATTEMPTS ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
     await query('UPDATE users SET failed_attempts = $1, locked_until = $2 WHERE id = $3',
       [lock ? 0 : attempts, lock, user.id]);
-    throw unauthorized('Email or password is incorrect');
+    throw unauthorized('اسم المستخدم أو كلمة السر غير صحيحة');
   }
 
   await query(
@@ -81,7 +81,7 @@ router.post('/login', loginLimiter, validate(loginSchema), wrap(async (req, res)
 // ---------------------------------------------------------------- refresh
 router.post('/refresh', refreshLimiter, wrap(async (req, res) => {
   const rotated = await consumeRefreshToken(req.body?.refreshToken);
-  if (!rotated) throw unauthorized('Please sign in again');
+  if (!rotated) throw unauthorized('سجّل الدخول من جديد');
   const accessToken = signAccessToken(rotated);
   const refreshToken = await issueRefreshToken(rotated.id, req.headers['user-agent']);
   res.json({ accessToken, refreshToken, user: await publicUser(rotated.id) });
@@ -101,13 +101,13 @@ router.get('/me', authenticate, wrap(async (req, res) => {
 // ---------------------------------------------------------------- change own password
 const changeSchema = z.object({
   currentPassword: z.string().min(1).max(200),
-  newPassword: z.string().min(8, 'Use at least 8 characters').max(200),
+  newPassword: z.string().min(8, 'استعمل 8 خانات على الأقل').max(200),
 });
 
 router.post('/change-password', authenticate, validate(changeSchema), wrap(async (req, res) => {
   const row = await one('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
   const ok = await bcrypt.compare(req.body.currentPassword, row.password_hash);
-  if (!ok) throw badRequest('Current password is not correct');
+  if (!ok) throw badRequest('كلمة السر الحالية غير صحيحة');
   const hash = await bcrypt.hash(req.body.newPassword, 12);
   await query(
     'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',

@@ -12,7 +12,7 @@ const globalLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator,
-  message: message('Too many requests. Please slow down for a moment.'),
+  message: message('طلبات كثيرة جدا. تمهّل قليلا من فضلك.'),
 });
 
 // Credential endpoints: tight, IP based, and it does not count successful logins.
@@ -22,7 +22,7 @@ const loginLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  message: message('Too many sign-in attempts. Try again in 15 minutes.'),
+  message: message('محاولات دخول كثيرة. أعد المحاولة بعد 15 دقيقة.'),
 });
 
 const refreshLimiter = rateLimit({
@@ -30,7 +30,7 @@ const refreshLimiter = rateLimit({
   limit: 20,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: message('Too many refresh attempts.'),
+  message: message('محاولات تحديث كثيرة جدا.'),
 });
 
 // Anything that creates or mutates rows.
@@ -40,7 +40,7 @@ const writeLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator,
-  message: message('You are saving a bit too fast. Please retry in a few seconds.'),
+  message: message('أنت تحفظ بسرعة كبيرة. أعد المحاولة بعد ثوان.'),
 });
 
 // Account provisioning / password resets by the admin.
@@ -50,7 +50,7 @@ const adminSensitiveLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator,
-  message: message('Too many account changes this hour.'),
+  message: message('تغييرات كثيرة على الحسابات في هذه الساعة.'),
 });
 
 // Reporting queries are heavier than plain reads.
@@ -60,7 +60,7 @@ const reportLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator,
-  message: message('Too many report requests.'),
+  message: message('طلبات تقارير كثيرة جدا.'),
 });
 
 module.exports = {

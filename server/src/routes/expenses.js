@@ -14,8 +14,8 @@ const CATEGORIES = ['rent', 'salary', 'utilities', 'supplies', 'marketing', 'tra
 const expenseSchema = z.object({
   store_id: z.string().uuid().optional(),
   category: z.enum(CATEGORIES).default('other'),
-  label: z.string().trim().min(1, 'Give it a short label').max(140),
-  amount: z.coerce.number().positive('Amount must be above zero'),
+  label: z.string().trim().min(1, 'أعطه عنوانا قصيرا').max(140),
+  amount: z.coerce.number().positive('المبلغ يجب أن يكون أكبر من الصفر'),
   spent_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   note: z.string().trim().max(300).optional().nullable(),
 });
@@ -58,8 +58,8 @@ router.post('/', writeLimiter, validate(expenseSchema), scopeStore(), wrap(async
 
 router.patch('/:id', writeLimiter, validate(expenseSchema.partial()), wrap(async (req, res) => {
   const existing = await one('SELECT * FROM expenses WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Expense not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Expense not found');
+  if (!existing) throw notFound('المصروف غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المصروف غير موجود');
   req.storeId = existing.store_id;
 
   const sets = [];
@@ -67,7 +67,7 @@ router.patch('/:id', writeLimiter, validate(expenseSchema.partial()), wrap(async
   for (const f of ['category', 'label', 'amount', 'spent_at', 'note']) {
     if (req.body[f] !== undefined) { values.push(req.body[f]); sets.push(`${f} = $${values.length}`); }
   }
-  if (!sets.length) throw badRequest('Nothing to update');
+  if (!sets.length) throw badRequest('لا يوجد شيء لتحديثه');
   values.push(req.params.id);
   const expense = await one(`UPDATE expenses SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
   audit(req, 'expense.update', 'expense', expense.id, req.body);
@@ -76,8 +76,8 @@ router.patch('/:id', writeLimiter, validate(expenseSchema.partial()), wrap(async
 
 router.delete('/:id', writeLimiter, wrap(async (req, res) => {
   const existing = await one('SELECT * FROM expenses WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Expense not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Expense not found');
+  if (!existing) throw notFound('المصروف غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المصروف غير موجود');
   await query('DELETE FROM expenses WHERE id = $1', [req.params.id]);
   req.storeId = existing.store_id;
   audit(req, 'expense.delete', 'expense', existing.id, { amount: existing.amount });

@@ -39,15 +39,15 @@ export default function StoreLayout() {
       }}
     >
       <Tabs.Screen name="index"
-        options={{ title: 'Today', tabBarIcon: ({ color, size }) => <Feather name="home" size={size - 2} color={color} /> }} />
+        options={{ title: 'اليوم', tabBarIcon: ({ color, size }) => <Feather name="home" size={size - 2} color={color} /> }} />
       <Tabs.Screen name="sell"
-        options={{ title: 'Sell', tabBarIcon: ({ color, size }) => <Feather name="shopping-cart" size={size - 2} color={color} /> }} />
+        options={{ title: 'بيع', tabBarIcon: ({ color, size }) => <Feather name="shopping-cart" size={size - 2} color={color} /> }} />
       <Tabs.Screen name="products"
-        options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="tag" size={size - 2} color={color} /> }} />
+        options={{ title: 'المنتجات', tabBarIcon: ({ color, size }) => <Feather name="tag" size={size - 2} color={color} /> }} />
       <Tabs.Screen name="money"
-        options={{ title: 'Money', tabBarIcon: ({ color, size }) => <Feather name="credit-card" size={size - 2} color={color} /> }} />
+        options={{ title: 'المال', tabBarIcon: ({ color, size }) => <Feather name="credit-card" size={size - 2} color={color} /> }} />
       <Tabs.Screen name="team"
-        options={{ title: 'Team', tabBarIcon: ({ color, size }) => <Feather name="users" size={size - 2} color={color} /> }} />
+        options={{ title: 'الفريق', tabBarIcon: ({ color, size }) => <Feather name="users" size={size - 2} color={color} /> }} />
     </Tabs>
   );
 }

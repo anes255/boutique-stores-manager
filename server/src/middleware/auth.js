@@ -6,13 +6,13 @@ const { unauthorized, forbidden, wrap } = require('../lib/errors');
 const authenticate = wrap(async (req, _res, next) => {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
-  if (!token) throw unauthorized('Missing access token');
+  if (!token) throw unauthorized('لم تسجّل الدخول');
 
   let payload;
   try {
     payload = verifyAccessToken(token);
   } catch (_) {
-    throw unauthorized('Session expired, please sign in again');
+    throw unauthorized('انتهت الجلسة، سجّل الدخول من جديد');
   }
 
   const user = await one(
@@ -20,7 +20,7 @@ const authenticate = wrap(async (req, _res, next) => {
        FROM users WHERE id = $1`,
     [payload.sub]
   );
-  if (!user || !user.is_active) throw unauthorized('Account disabled');
+  if (!user || !user.is_active) throw unauthorized('هذا الحساب معطّل');
 
   req.user = user;
   next();
@@ -29,7 +29,7 @@ const authenticate = wrap(async (req, _res, next) => {
 /** Restricts a route to the given roles. */
 const requireRole = (...roles) => (req, _res, next) => {
   if (!req.user) return next(unauthorized());
-  if (!roles.includes(req.user.role)) return next(forbidden('You do not have access to this area'));
+  if (!roles.includes(req.user.role)) return next(forbidden('ليست لديك صلاحية الدخول إلى هذا القسم'));
   next();
 };
 
@@ -48,14 +48,14 @@ function scopeStore(options = {}) {
       req.params.storeId || req.params.id_store || req.query.store_id || req.body?.store_id || null;
 
     if (req.user.role === 'admin') {
-      if (required && !asked) return next(forbidden('store_id is required'));
+      if (required && !asked) return next(forbidden('يجب تحديد المحل'));
       req.storeId = asked || null;
       return next();
     }
 
-    if (!req.user.store_id) return next(forbidden('No store assigned to this account'));
+    if (!req.user.store_id) return next(forbidden('لا يوجد محل مرتبط بهذا الحساب'));
     if (asked && asked !== req.user.store_id) {
-      return next(forbidden('This data belongs to another store'));
+      return next(forbidden('هذه البيانات تخص محلا آخر'));
     }
     req.storeId = req.user.store_id;
     next();

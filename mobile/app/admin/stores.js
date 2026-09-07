@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useData } from '../../src/hooks';
-import { colors, font, money, radius, spacing, type, compact } from '../../src/theme';
+import { colors, compact, font, money, radius, row, spacing, type } from '../../src/theme';
 import {
   Screen, Header, Card, Button, Loader, ErrorNote, EmptyState,
   Badge, Progress, Feather, Segmented, Fab,
 } from '../../src/components/ui';
-import { Sparkline } from '../../src/charts';
 
 const RANGES = [
-  { label: '7 days', value: 7 },
-  { label: '30 days', value: 30 },
-  { label: '90 days', value: 90 },
+  { label: '7 أيام', value: 7 },
+  { label: '30 يوم', value: 30 },
+  { label: '90 يوم', value: 90 },
 ];
 
 export default function Stores() {
@@ -29,13 +28,13 @@ export default function Stores() {
   const meta = data.list?.stores || [];
   const byId = Object.fromEntries(meta.map((s) => [s.id, s]));
 
-  if (loading && !stats.length) return <Loader text="Gathering your stores…" />;
+  if (loading && !stats.length) return <Loader text="جاري تحميل محلاتك…" />;
 
   const groupRevenue = stats.reduce((s, x) => s + Number(x.revenue || 0), 0);
 
   return (
     <>
-      <Header title="Your stores" subtitle={`${stats.length} location${stats.length === 1 ? '' : 's'}`} />
+      <Header title="محلاتك" subtitle={`${stats.length} محل`} />
       <Screen refreshing={refreshing} onRefresh={reload}>
         <ErrorNote message={error} onRetry={reload} />
         <Segmented options={RANGES} value={days} onChange={setDays} />
@@ -44,9 +43,9 @@ export default function Stores() {
           <Card>
             <EmptyState
               icon="shopping-bag"
-              title="Let's open your first store"
-              text="Give it a name and a short code. You can create its login right after."
-              actionLabel="Create a store"
+              title="لنفتح أول محل"
+              text="أعطه اسما ورمزا قصيرا. يمكنك إنشاء حساب الدخول مباشرة بعدها."
+              actionLabel="إنشاء محل"
               onAction={() => router.push('/modal/store-form')}
             />
           </Card>
@@ -66,24 +65,24 @@ export default function Stores() {
                 <View style={{ flex: 1 }}>
                   <Text style={type.section} numberOfLines={1}>{s.name}</Text>
                   <Text style={type.tiny}>
-                    {s.code}{info.city ? ` · ${info.city}` : ''} · {Number(s.headcount)} on the team
+                    {s.code}{info.city ? ` · ${info.city}` : ''} · {Number(s.headcount)} في الفريق
                   </Text>
                 </View>
-                {!s.is_active ? <Badge text="Closed" tone={colors.bad} soft={colors.badSoft} /> : null}
-                <Feather name="chevron-right" size={18} color={colors.inkMuted} />
+                {!s.is_active ? <Badge text="مغلق" tone={colors.bad} soft={colors.badSoft} /> : null}
+                <Feather name="chevron-left" size={18} color={colors.inkMuted} />
               </View>
 
               <View style={styles.metrics}>
-                <Metric label="Revenue" value={money(s.revenue, s.currency, { compact: true })} tone={colors.primary} />
-                <Metric label="Profit" value={money(s.profit, s.currency, { compact: true })} tone={colors.sage} />
-                <Metric label="Sales" value={String(Number(s.orders))} tone={colors.lilac} />
-                <Metric label="Stock" value={money(s.stock_value, s.currency, { compact: true })} tone={colors.sky} />
+                <Metric label="المبيعات" value={money(s.revenue, s.currency, { compact: true })} tone={colors.primary} />
+                <Metric label="الربح" value={money(s.profit, s.currency, { compact: true })} tone={colors.sage} />
+                <Metric label="العمليات" value={String(Number(s.orders))} tone={colors.lilac} />
+                <Metric label="المخزون" value={money(s.stock_value, s.currency, { compact: true })} tone={colors.sky} />
               </View>
 
               {targetPct !== null ? (
                 <View style={{ gap: 6 }}>
                   <View style={styles.rowBetween}>
-                    <Text style={type.tiny}>Monthly target</Text>
+                    <Text style={type.tiny}>الهدف الشهري</Text>
                     <Text style={[type.tiny, { fontFamily: font.bodyBold, color: colors.ink }]}>
                       {money(info.month_revenue, s.currency, { compact: true })} / {money(s.monthly_target, s.currency, { compact: true })}
                     </Text>
@@ -96,29 +95,29 @@ export default function Stores() {
                 <View style={styles.footItem}>
                   <Feather name="alert-triangle" size={12}
                     color={Number(s.low_stock) > 0 ? colors.warn : colors.inkMuted} />
-                  <Text style={type.tiny}>{Number(s.low_stock)} low on stock</Text>
+                  <Text style={type.tiny}>{Number(s.low_stock)} منتج على وشك النفاد</Text>
                 </View>
                 <View style={styles.footItem}>
                   <Feather name="pie-chart" size={12} color={colors.inkMuted} />
-                  <Text style={type.tiny}>{share.toFixed(0)}% of group</Text>
+                  <Text style={type.tiny}>{share.toFixed(0)}% من المجموع</Text>
                 </View>
                 <View style={styles.footItem}>
                   <Feather name="credit-card" size={12} color={colors.inkMuted} />
-                  <Text style={type.tiny}>payroll {compact(s.payroll)}</Text>
+                  <Text style={type.tiny}>أجور {compact(s.payroll)}</Text>
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button title="Open" icon="arrow-right" small variant="soft" style={{ flex: 1 }}
+              <View style={{ flexDirection: row, gap: 8 }}>
+                <Button title="فتح" icon="arrow-left" small variant="soft" style={{ flex: 1 }}
                   onPress={() => router.push(`/store/${s.id}`)} />
-                <Button title="Manage" icon="settings" small variant="white" style={{ flex: 1 }}
+                <Button title="إعدادات" icon="settings" small variant="white" style={{ flex: 1 }}
                   onPress={() => router.push({ pathname: '/modal/store-form', params: { id: s.id } })} />
               </View>
             </Card>
           );
         })}
       </Screen>
-      <Fab icon="plus" label="New store" onPress={() => router.push('/modal/store-form')} />
+      <Fab icon="plus" label="محل جديد" onPress={() => router.push('/modal/store-form')} />
     </>
   );
 }
@@ -127,23 +126,22 @@ function Metric({ label, value, tone }) {
   return (
     <View style={styles.metric}>
       <Text style={type.tiny}>{label}</Text>
-      <Text style={[type.bodyStrong, { color: tone, fontSize: 15 }]} numberOfLines={1}>{value}</Text>
+      <Text style={[type.bodyStrong, { color: tone, fontSize: 14 }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
 
 function initials(name) {
-  return (name || '?').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/)
-    .map((n) => n[0]).slice(0, 2).join('').toUpperCase();
+  return (name || '?').trim().slice(0, 2);
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  head: { flexDirection: row, alignItems: 'center', gap: 11 },
   badge: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontFamily: font.bodyBlack, fontSize: 15 },
-  metrics: { flexDirection: 'row', gap: 8, backgroundColor: colors.surfaceSoft, borderRadius: radius.md, padding: 12 },
+  badgeText: { fontFamily: font.bodyBlack, fontSize: 15, lineHeight: 26 },
+  metrics: { flexDirection: row, gap: 8, backgroundColor: colors.surfaceSoft, borderRadius: radius.md, padding: 12 },
   metric: { flex: 1, gap: 2 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  footer: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  footItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  rowBetween: { flexDirection: row, justifyContent: 'space-between', alignItems: 'center' },
+  footer: { flexDirection: row, flexWrap: 'wrap', gap: 14 },
+  footItem: { flexDirection: row, alignItems: 'center', gap: 5 },
 });

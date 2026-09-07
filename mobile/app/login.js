@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../src/auth';
 import { getBaseUrl, setBaseUrl } from '../src/api';
-import { colors, font, radius, shadow, spacing, type } from '../src/theme';
+import { colors, font, radius, row, shadow, spacing, type } from '../src/theme';
 import { Button, Field, Feather, ErrorNote } from '../src/components/ui';
 
 export default function Login() {
@@ -24,7 +24,7 @@ export default function Login() {
 
   async function onSubmit() {
     if (!email.trim() || !password) {
-      setError('Enter your email and password to continue');
+      setError('أدخل اسم المستخدم وكلمة السر للمتابعة');
       return;
     }
     setBusy(true);
@@ -55,28 +55,27 @@ export default function Login() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandBlock}>
-          <View style={styles.mark}><Text style={styles.markText}>B</Text></View>
-          <Text style={[type.hero, { marginTop: 18 }]}>Welcome back</Text>
+          <View style={styles.mark}><Text style={styles.markText}>م</Text></View>
+          <Text style={[type.hero, { marginTop: 18, textAlign: 'center' }]}>مرحبا بعودتك</Text>
           <Text style={[type.body, { textAlign: 'center' }]}>
-            Sign in to open your shop floor, your numbers and your team.
+            سجّل الدخول لتفتح محلك وأرقامك وفريقك.
           </Text>
         </View>
 
         <View style={styles.card}>
           <Field
-            label="Email"
+            label="اسم المستخدم أو البريد"
             value={email}
             onChangeText={setEmail}
-            placeholder="you@boutique.com"
+            placeholder="مثال: 0770000000"
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="email-address"
             textContentType="username"
             returnKeyType="next"
           />
 
           <View style={{ gap: 6 }}>
-            <Text style={[type.label, { color: colors.inkSoft }]}>Password</Text>
+            <Text style={[type.label, { color: colors.inkSoft }]}>كلمة السر</Text>
             <View style={styles.passwordWrap}>
               <Field
                 style={{ flex: 1 }}
@@ -97,32 +96,32 @@ export default function Login() {
 
           <ErrorNote message={error} />
 
-          <Button title="Sign in" onPress={onSubmit} loading={busy} icon="log-in" />
+          <Button title="دخول" onPress={onSubmit} loading={busy} icon="log-in" />
         </View>
 
         <Pressable onPress={() => setServerOpen((v) => !v)} style={styles.serverToggle} hitSlop={8}>
           <Feather name="server" size={13} color={colors.inkMuted} />
-          <Text style={type.tiny} numberOfLines={1}>{getBaseUrl()}</Text>
+          <Text style={[type.tiny, { writingDirection: 'ltr' }]} numberOfLines={1}>{getBaseUrl()}</Text>
           <Feather name={serverOpen ? 'chevron-up' : 'chevron-down'} size={13} color={colors.inkMuted} />
         </Pressable>
 
         {serverOpen ? (
           <View style={styles.serverCard}>
             <Field
-              label="Server address"
+              label="عنوان الخادم"
               value={server}
               onChangeText={setServer}
               placeholder="http://192.168.1.10:4000"
               autoCapitalize="none"
               autoCorrect={false}
-              hint="Change this only if the app cannot reach your backend."
+              hint="لا تغيّر هذا إلا إذا كان التطبيق لا يصل إلى الخادم."
             />
-            <Button title="Save address" variant="soft" small onPress={saveServer} />
+            <Button title="حفظ العنوان" variant="soft" small onPress={saveServer} />
           </View>
         ) : null}
 
         <Text style={[type.tiny, { textAlign: 'center', marginTop: 6 }]}>
-          Accounts are created by the owner. Ask them for your store login.
+          حسابات الدخول ينشئها المالك. اطلب منه بيانات الدخول الخاصة بمحلك.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -136,15 +135,15 @@ const styles = StyleSheet.create({
     width: 76, height: 76, borderRadius: 27, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center', ...shadow(3),
   },
-  markText: { fontFamily: font.display, fontSize: 38, color: colors.white },
+  markText: { fontFamily: font.display, fontSize: 34, color: colors.white, lineHeight: 54 },
   card: {
     backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg,
     gap: spacing.md, borderWidth: 1, borderColor: colors.lineSoft, ...shadow(2),
   },
-  passwordWrap: { flexDirection: 'row', alignItems: 'center' },
-  eye: { position: 'absolute', right: 14, padding: 4 },
+  passwordWrap: { flexDirection: row, alignItems: 'center' },
+  eye: { position: 'absolute', left: 14, padding: 4 },
   serverToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'center',
+    flexDirection: row, alignItems: 'center', gap: 7, alignSelf: 'center',
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.bgAlt,
     maxWidth: '90%',
   },

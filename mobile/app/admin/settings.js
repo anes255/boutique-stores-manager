@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { useAuth } from '../../src/auth';
 import { getBaseUrl, setBaseUrl } from '../../src/api';
-import { colors, font, radius, spacing, type } from '../../src/theme';
+import { colors, font, radius, row, spacing, type } from '../../src/theme';
 import {
   Screen, Header, Card, SectionTitle, Button, Field, Loader,
   ErrorNote, ListRow, Feather, Badge,
@@ -25,13 +25,13 @@ export default function Settings() {
   async function onChangePassword() {
     setError(null);
     setMessage(null);
-    if (next.length < 8) return setError('New password needs at least 8 characters');
-    if (next !== confirm) return setError('The two new passwords do not match');
+    if (next.length < 8) return setError('كلمة السر الجديدة تحتاج 8 خانات على الأقل');
+    if (next !== confirm) return setError('كلمتا السر الجديدتان غير متطابقتين');
     setBusy(true);
     try {
       await changePassword(current, next);
       setCurrent(''); setNext(''); setConfirm('');
-      setMessage('Password updated. Other devices were signed out.');
+      setMessage('تم تحديث كلمة السر. تم تسجيل الخروج من الأجهزة الأخرى.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,10 +40,10 @@ export default function Settings() {
   }
 
   function onLogout() {
-    Alert.alert('Sign out?', 'You will need your email and password to come back.', [
-      { text: 'Stay', style: 'cancel' },
+    Alert.alert('تسجيل الخروج؟', 'ستحتاج اسم المستخدم وكلمة السر للعودة.', [
+      { text: 'البقاء', style: 'cancel' },
       {
-        text: 'Sign out',
+        text: 'خروج',
         style: 'destructive',
         onPress: async () => { await logout(); router.replace('/login'); },
       },
@@ -54,30 +54,28 @@ export default function Settings() {
 
   return (
     <>
-      <Header title="Your account" subtitle="Settings" />
+      <Header title="حسابي" subtitle="الإعدادات" />
       <Screen>
         <Card style={{ alignItems: 'center', gap: 8, paddingVertical: spacing.lg }}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(user.full_name || 'B').split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-            </Text>
+            <Text style={styles.avatarText}>{(user.full_name || 'م').trim().slice(0, 1)}</Text>
           </View>
           <Text style={type.title}>{user.full_name}</Text>
           <Text style={type.body}>{user.email}</Text>
           <Badge
-            text={user.role === 'admin' ? 'Owner · full access' : `${user.role} · ${user.store_name || 'store'}`}
+            text={user.role === 'admin' ? 'المالك · صلاحيات كاملة' : `${user.store_name || 'محل'}`}
             icon="shield"
           />
         </Card>
 
         <Card>
-          <SectionTitle icon="lock">Change your password</SectionTitle>
+          <SectionTitle icon="lock">تغيير كلمة السر</SectionTitle>
           <View style={{ gap: 12, marginTop: 10 }}>
-            <Field label="Current password" value={current} onChangeText={setCurrent}
+            <Field label="كلمة السر الحالية" value={current} onChangeText={setCurrent}
               secureTextEntry autoCapitalize="none" placeholder="••••••••" />
-            <Field label="New password" value={next} onChangeText={setNext}
-              secureTextEntry autoCapitalize="none" placeholder="At least 8 characters" />
-            <Field label="Repeat new password" value={confirm} onChangeText={setConfirm}
+            <Field label="كلمة السر الجديدة" value={next} onChangeText={setNext}
+              secureTextEntry autoCapitalize="none" placeholder="8 خانات على الأقل" />
+            <Field label="أعد كتابة الجديدة" value={confirm} onChangeText={setConfirm}
               secureTextEntry autoCapitalize="none" placeholder="••••••••" />
             <ErrorNote message={error} />
             {message ? (
@@ -86,35 +84,35 @@ export default function Settings() {
                 <Text style={[type.label, { color: colors.good, flex: 1 }]}>{message}</Text>
               </View>
             ) : null}
-            <Button title="Update password" icon="check" onPress={onChangePassword} loading={busy} />
+            <Button title="تحديث كلمة السر" icon="check" onPress={onChangePassword} loading={busy} />
           </View>
         </Card>
 
         <Card>
-          <SectionTitle icon="server">Server</SectionTitle>
+          <SectionTitle icon="server">الخادم</SectionTitle>
           <Text style={[type.tiny, { marginTop: 4, marginBottom: 10 }]}>
-            Where this app looks for your data. Leave it alone unless you moved the backend.
+            المكان الذي يقرأ منه التطبيق بياناتك. لا تغيّره إلا إذا نقلت الخادم.
           </Text>
           <Field value={server} onChangeText={setServer} autoCapitalize="none" autoCorrect={false}
             placeholder="https://your-api.onrender.com" />
-          <Button title="Save server address" variant="white" small style={{ marginTop: 10 }}
-            onPress={async () => { const v = await setBaseUrl(server); setServer(v); setMessage('Server address saved.'); }} />
+          <Button title="حفظ عنوان الخادم" variant="white" small style={{ marginTop: 10 }}
+            onPress={async () => { const v = await setBaseUrl(server); setServer(v); setMessage('تم حفظ عنوان الخادم.'); }} />
         </Card>
 
         <Card>
-          <SectionTitle icon="help-circle">How it works</SectionTitle>
-          <ListRow icon="shopping-bag" title="Create a store"
-            subtitle="Stores tab → New store" />
-          <ListRow icon="key" title="Give it a login"
-            subtitle="Open the store → Manage → Add a login" />
-          <ListRow icon="tag" title="Add products"
-            subtitle="Inside a store → Products" />
-          <ListRow icon="shopping-cart" title="Record sales"
-            subtitle="Inside a store → Sell" last />
+          <SectionTitle icon="help-circle">كيف يعمل التطبيق</SectionTitle>
+          <ListRow icon="shopping-bag" title="أنشئ محلا"
+            subtitle="تبويب المحلات ← محل جديد" />
+          <ListRow icon="key" title="أعطه حساب دخول"
+            subtitle="افتح المحل ← إعدادات ← إضافة حساب" />
+          <ListRow icon="tag" title="أضف المنتجات"
+            subtitle="داخل المحل ← المنتجات" />
+          <ListRow icon="shopping-cart" title="سجّل المبيعات"
+            subtitle="داخل المحل ← بيع" last />
         </Card>
 
-        <Button title="Sign out" icon="log-out" variant="danger" onPress={onLogout} />
-        <Text style={[type.tiny, { textAlign: 'center' }]}>Boutique · multi-store manager</Text>
+        <Button title="تسجيل الخروج" icon="log-out" variant="danger" onPress={onLogout} />
+        <Text style={[type.tiny, { textAlign: 'center' }]}>متجري · إدارة عدة محلات</Text>
       </Screen>
     </>
   );
@@ -125,9 +123,9 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 26, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontFamily: font.bodyBlack, fontSize: 26, color: colors.white },
+  avatarText: { fontFamily: font.bodyBlack, fontSize: 28, color: colors.white, lineHeight: 46 },
   good: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: row, alignItems: 'center', gap: 8,
     backgroundColor: colors.goodSoft, padding: 12, borderRadius: radius.md,
   },
 });

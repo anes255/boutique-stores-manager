@@ -54,7 +54,7 @@ app.use((req, _res, next) => {
     return Math.max(d, ...Object.values(obj).map((v) => depth(v, d + 1)));
   };
   if (req.body && depth(req.body) > 6) {
-    return next(new ApiError(400, 'Payload structure is too deep', 'bad_payload'));
+    return next(new ApiError(400, 'بنية الطلب معقدة أكثر من اللازم', 'bad_payload'));
   }
   next();
 });
@@ -75,7 +75,7 @@ app.use('/api/employees', require('./routes/employees'));
 app.use('/api/stats', require('./routes/stats'));
 
 // ------------------------------------------------------------ 404 + errors
-app.use((_req, res) => res.status(404).json({ error: 'Endpoint not found', code: 'not_found' }));
+app.use((_req, res) => res.status(404).json({ error: 'الرابط غير موجود', code: 'not_found' }));
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
@@ -83,20 +83,20 @@ app.use((err, req, res, _next) => {
     return res.status(err.status).json({ error: err.message, code: err.code });
   }
   if (err && err.type === 'entity.too.large') {
-    return res.status(413).json({ error: 'That request was too large', code: 'too_large' });
+    return res.status(413).json({ error: 'حجم الطلب كبير جدا', code: 'too_large' });
   }
   if (err && /CORS/.test(err.message || '')) {
-    return res.status(403).json({ error: 'Origin not allowed', code: 'cors' });
+    return res.status(403).json({ error: 'مصدر الطلب غير مسموح', code: 'cors' });
   }
   if (err && err.code === '23505') {
-    return res.status(409).json({ error: 'That record already exists', code: 'conflict' });
+    return res.status(409).json({ error: 'هذا السجل موجود من قبل', code: 'conflict' });
   }
   if (err && err.code === '23503') {
-    return res.status(400).json({ error: 'A linked record is missing', code: 'fk_violation' });
+    return res.status(400).json({ error: 'سجل مرتبط غير موجود', code: 'fk_violation' });
   }
   console.error('[error]', err);
   // Never leak internals to the client.
-  res.status(500).json({ error: 'Something went wrong on our side', code: 'server_error' });
+  res.status(500).json({ error: 'حدث خطأ من جهتنا', code: 'server_error' });
 });
 
 const port = Number(process.env.PORT || 4000);

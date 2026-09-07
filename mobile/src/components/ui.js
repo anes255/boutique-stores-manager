@@ -6,13 +6,13 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, spacing, type, font } from '../theme';
+import { colors, font, radius, row, shadow, spacing, type } from '../theme';
 
 const tap = () => {
   if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
 };
 
-/* ------------------------------------------------------------------ layout */
+/* ------------------------------------------------------------------ الهيكل */
 
 export function Screen({ children, scroll = true, refreshing, onRefresh, contentStyle, style }) {
   const insets = useSafeAreaInsets();
@@ -61,7 +61,8 @@ export function Header({ title, subtitle, right, onBack, tint = colors.primary }
       <View style={styles.headerRow}>
         {onBack ? (
           <Pressable onPress={() => { tap(); onBack(); }} style={styles.backBtn} hitSlop={10}>
-            <Feather name="chevron-left" size={22} color={colors.ink} />
+            {/* في واجهة من اليمين إلى اليسار سهم الرجوع يشير إلى اليمين */}
+            <Feather name="chevron-right" size={22} color={colors.ink} />
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }}>
@@ -96,7 +97,7 @@ export function Card({ children, style, tone, onPress, padded = true }) {
 export function SectionTitle({ children, action, onAction, icon }) {
   return (
     <View style={styles.sectionTitle}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+      <View style={{ flexDirection: row, alignItems: 'center', gap: 8, flex: 1 }}>
         {icon ? <Feather name={icon} size={16} color={colors.primary} /> : null}
         <Text style={type.section}>{children}</Text>
       </View>
@@ -111,7 +112,7 @@ export function SectionTitle({ children, action, onAction, icon }) {
 
 export const Divider = ({ style }) => <View style={[styles.divider, style]} />;
 
-/* ------------------------------------------------------------------ data bits */
+/* ------------------------------------------------------------------ عناصر البيانات */
 
 export function StatTile({ label, value, sub, tone = colors.primary, soft = colors.primarySoft, icon, trend, wide }) {
   const trendTone = trend == null ? null : trend >= 0 ? colors.good : colors.bad;
@@ -125,11 +126,11 @@ export function StatTile({ label, value, sub, tone = colors.primary, soft = colo
         ) : null}
         <Text style={[type.tiny, { color: colors.inkSoft, flex: 1 }]} numberOfLines={1}>{label}</Text>
       </View>
-      <Text style={[type.number, { color: colors.ink, fontSize: wide ? 28 : 21, lineHeight: wide ? 34 : 27 }]}
+      <Text style={[type.number, { color: colors.ink, fontSize: wide ? 26 : 20, lineHeight: wide ? 40 : 32 }]}
         numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
         {value}
       </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+      <View style={{ flexDirection: row, alignItems: 'center', gap: 5 }}>
         {trend != null ? (
           <>
             <Feather name={trend >= 0 ? 'trending-up' : 'trending-down'} size={12} color={trendTone} />
@@ -176,13 +177,13 @@ export function ListRow({ title, subtitle, right, rightSub, icon, iconTone = col
         {subtitle ? <Text style={type.tiny} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right != null ? (
-        <View style={{ alignItems: 'flex-end' }}>
+        <View style={{ alignItems: 'flex-start' }}>
           {typeof right === 'string' || typeof right === 'number'
             ? <Text style={[type.bodyStrong, { color: colors.ink }]}>{right}</Text> : right}
           {rightSub ? <Text style={type.tiny}>{rightSub}</Text> : null}
         </View>
       ) : null}
-      {onPress ? <Feather name="chevron-right" size={17} color={colors.inkMuted} /> : null}
+      {onPress ? <Feather name="chevron-left" size={17} color={colors.inkMuted} /> : null}
     </View>
   );
   if (!onPress) return content;
@@ -193,7 +194,7 @@ export function ListRow({ title, subtitle, right, rightSub, icon, iconTone = col
   );
 }
 
-/* ------------------------------------------------------------------ controls */
+/* ------------------------------------------------------------------ عناصر التحكم */
 
 export function Button({ title, onPress, variant = 'primary', icon, loading, disabled, small, style, full = true }) {
   const v = BUTTONS[variant] || BUTTONS.primary;
@@ -288,7 +289,9 @@ export function Segmented({ options, value, onChange }) {
             onPress={() => { tap(); onChange(v); }}
             style={[styles.segment, on && styles.segmentOn]}
           >
-            <Text style={[type.tiny, { fontFamily: font.bodyBold }, on && { color: colors.ink }]}>{label}</Text>
+            <Text style={[type.tiny, { fontFamily: font.bodyBold, textAlign: 'center' }, on && { color: colors.ink }]}>
+              {label}
+            </Text>
           </Pressable>
         );
       })}
@@ -310,9 +313,9 @@ export function Switch({ value, onChange, label, hint }) {
   );
 }
 
-/* ------------------------------------------------------------------ states */
+/* ------------------------------------------------------------------ الحالات */
 
-export function Loader({ text = 'Getting things ready…' }) {
+export function Loader({ text = 'جاري التحضير…' }) {
   return (
     <View style={styles.center}>
       <ActivityIndicator color={colors.primary} size="large" />
@@ -342,7 +345,7 @@ export function ErrorNote({ message, onRetry }) {
       <Text style={[type.label, { color: colors.bad, flex: 1 }]}>{message}</Text>
       {onRetry ? (
         <Pressable onPress={onRetry} hitSlop={8}>
-          <Text style={[type.label, { color: colors.bad, fontFamily: font.bodyBold }]}>Retry</Text>
+          <Text style={[type.label, { color: colors.bad, fontFamily: font.bodyBold }]}>إعادة المحاولة</Text>
         </Pressable>
       ) : null}
     </View>
@@ -364,13 +367,13 @@ export function Fab({ icon = 'plus', onPress, label }) {
 
 export { Feather, tap };
 
-/* ------------------------------------------------------------------ styles */
+/* ------------------------------------------------------------------ الأنماط */
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scrollContent: { paddingHorizontal: spacing.md, gap: spacing.md, paddingTop: spacing.sm },
   header: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.bg },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerRow: { flexDirection: row, alignItems: 'center', gap: 10 },
   backBtn: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
@@ -380,70 +383,73 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.lineSoft, ...shadow(1),
   },
   pressed: { opacity: 0.85 },
-  sectionTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4 },
+  sectionTitle: { flexDirection: row, alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4 },
   divider: { height: 1, backgroundColor: colors.lineSoft },
 
   tile: {
-    flexGrow: 1, flexBasis: '47%', borderRadius: radius.md, padding: 13, gap: 5, borderWidth: 1,
+    flexGrow: 1, flexBasis: '47%', borderRadius: radius.md, padding: 13, gap: 2, borderWidth: 1,
   },
-  tileTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  tileTop: { flexDirection: row, alignItems: 'center', gap: 7 },
   tileIcon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 
   badge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, alignSelf: 'flex-start',
+    flexDirection: row, alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 3, borderRadius: radius.pill, alignSelf: 'flex-start',
   },
   progressTrack: { backgroundColor: colors.lineSoft, overflow: 'hidden', width: '100%' },
 
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11,
+    flexDirection: row, alignItems: 'center', gap: 11, paddingVertical: 11,
     borderBottomWidth: 1, borderBottomColor: colors.lineSoft,
   },
   rowIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 
   button: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, paddingHorizontal: 18, borderRadius: radius.md, borderWidth: 1,
+    flexDirection: row, alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 13, paddingHorizontal: 18, borderRadius: radius.md, borderWidth: 1,
   },
-  buttonText: { fontFamily: font.bodyBold, fontSize: 15.5 },
+  buttonText: { fontFamily: font.bodyBold, fontSize: 15.5, lineHeight: 26 },
 
   input: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: row, alignItems: 'center', gap: 8,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line,
-    borderRadius: radius.md, paddingHorizontal: 14, minHeight: 50,
+    borderRadius: radius.md, paddingHorizontal: 14, minHeight: 52,
   },
-  inputText: { flex: 1, fontFamily: font.body, fontSize: 15.5, color: colors.ink, paddingVertical: 12 },
+  inputText: {
+    flex: 1, fontFamily: font.body, fontSize: 15.5, color: colors.ink,
+    paddingVertical: 12, textAlign: 'right', writingDirection: 'rtl',
+  },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chips: { flexDirection: row, flexWrap: 'wrap', gap: 8 },
   chip: {
-    paddingHorizontal: 13, paddingVertical: 8, borderRadius: radius.pill,
+    paddingHorizontal: 13, paddingVertical: 7, borderRadius: radius.pill,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line,
   },
 
   segmented: {
-    flexDirection: 'row', backgroundColor: colors.bgAlt, borderRadius: radius.pill, padding: 4, gap: 2,
+    flexDirection: row, backgroundColor: colors.bgAlt, borderRadius: radius.pill, padding: 4, gap: 2,
   },
-  segment: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.pill },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: radius.pill },
   segmentOn: { backgroundColor: colors.white, ...shadow(0.5) },
 
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  switchRow: { flexDirection: row, alignItems: 'center', gap: 12, paddingVertical: 8 },
   switchTrack: {
     width: 50, height: 30, borderRadius: 15, backgroundColor: colors.line, padding: 3, justifyContent: 'center',
   },
   switchKnob: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.white, ...shadow(1) },
 
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, backgroundColor: colors.bg },
   empty: { alignItems: 'center', gap: 8, paddingVertical: spacing.xl, paddingHorizontal: spacing.lg },
   emptyIcon: {
     width: 58, height: 58, borderRadius: 29, backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
   errorNote: {
-    flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: colors.badSoft,
+    flexDirection: row, alignItems: 'center', gap: 9, backgroundColor: colors.badSoft,
     borderRadius: radius.md, padding: 12,
   },
   fab: {
-    position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: 8,
+    position: 'absolute', left: spacing.md, flexDirection: row, alignItems: 'center', gap: 8,
     backgroundColor: colors.primary, paddingHorizontal: 18, height: 54, borderRadius: 27,
     justifyContent: 'center', ...shadow(3),
   },

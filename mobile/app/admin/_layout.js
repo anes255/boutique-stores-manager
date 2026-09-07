@@ -36,23 +36,23 @@ export default function AdminLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Overview', tabBarIcon: ({ color, size }) => <Feather name="home" size={size - 2} color={color} /> }}
+        options={{ title: 'الرئيسية', tabBarIcon: ({ color, size }) => <Feather name="home" size={size - 2} color={color} /> }}
       />
       <Tabs.Screen
         name="stores"
-        options={{ title: 'Stores', tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size - 2} color={color} /> }}
+        options={{ title: 'المحلات', tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size - 2} color={color} /> }}
       />
       <Tabs.Screen
         name="reports"
-        options={{ title: 'Reports', tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={size - 2} color={color} /> }}
+        options={{ title: 'التقارير', tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={size - 2} color={color} /> }}
       />
       <Tabs.Screen
         name="team"
-        options={{ title: 'Team', tabBarIcon: ({ color, size }) => <Feather name="users" size={size - 2} color={color} /> }}
+        options={{ title: 'الفريق', tabBarIcon: ({ color, size }) => <Feather name="users" size={size - 2} color={color} /> }}
       />
       <Tabs.Screen
         name="settings"
-        options={{ title: 'Account', tabBarIcon: ({ color, size }) => <Feather name="settings" size={size - 2} color={color} /> }}
+        options={{ title: 'حسابي', tabBarIcon: ({ color, size }) => <Feather name="settings" size={size - 2} color={color} /> }}
       />
     </Tabs>
   );

@@ -3,13 +3,13 @@ import { View, Text, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { api } from '../../src/api';
-import { colors, type } from '../../src/theme';
+import { colors, row, type } from '../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
   SectionTitle, ListRow, EmptyState,
 } from '../../src/components/ui';
 
-const SUGGESTIONS = ['Dresses', 'Tops', 'Bottoms', 'Outerwear', 'Knitwear', 'Shoes', 'Bags', 'Accessories', 'Kids'];
+const SUGGESTIONS = ['فساتين', 'قمصان وبلوزات', 'سراويل', 'معاطف', 'تريكو', 'أحذية', 'حقائب', 'إكسسوارات', 'أطفال'];
 
 export default function Categories() {
   const { storeId } = useLocalSearchParams();
@@ -36,7 +36,7 @@ export default function Categories() {
 
   async function add(value) {
     const label = (value ?? name).trim();
-    if (!label) return setError('Type a category name');
+    if (!label) return setError('اكتب اسم الصنف');
     setError(null);
     setSaving(true);
     try {
@@ -51,10 +51,10 @@ export default function Categories() {
   }
 
   function remove(cat) {
-    Alert.alert('Delete this category?', `Products in "${cat.name}" stay, they just lose the label.`, [
-      { text: 'Keep', style: 'cancel' },
+    Alert.alert('حذف هذا الصنف؟', `المنتجات في "${cat.name}" ستبقى، لكنها ستفقد التصنيف.`, [
+      { text: 'إبقاء', style: 'cancel' },
       {
-        text: 'Delete',
+        text: 'حذف',
         style: 'destructive',
         onPress: async () => {
           try { await api.del(`/api/products/meta/categories/${cat.id}`); load(); }
@@ -64,31 +64,31 @@ export default function Categories() {
     ]);
   }
 
-  if (loading) return <Loader text="Loading categories…" />;
+  if (loading) return <Loader text="جاري تحميل الأصناف…" />;
 
   const missing = SUGGESTIONS.filter(
-    (s) => !categories.some((c) => c.name.toLowerCase() === s.toLowerCase())
+    (s) => !categories.some((c) => c.name.trim() === s)
   );
 
   return (
     <>
-      <Header title="Categories" subtitle="Group your rack" onBack={() => router.back()} />
+      <Header title="الأصناف" subtitle="نظّم رفوفك" onBack={() => router.back()} />
       <KeyboardScreen>
         <ErrorNote message={error} />
 
         <Card style={{ gap: 12 }}>
-          <Field label="New category" value={name} onChangeText={setName}
-            placeholder="Dresses" onSubmitEditing={() => add()} returnKeyType="done" />
-          <Button title="Add category" icon="plus" onPress={() => add()} loading={saving} />
+          <Field label="صنف جديد" value={name} onChangeText={setName}
+            placeholder="فساتين" onSubmitEditing={() => add()} returnKeyType="done" />
+          <Button title="إضافة الصنف" icon="plus" onPress={() => add()} loading={saving} />
         </Card>
 
         {missing.length ? (
           <Card>
-            <SectionTitle icon="zap">Quick add</SectionTitle>
+            <SectionTitle icon="zap">إضافة سريعة</SectionTitle>
             <Text style={[type.tiny, { marginTop: 4, marginBottom: 10 }]}>
-              Common categories for a clothing shop — tap to add.
+              أصناف شائعة في محلات الملابس — اضغط لإضافتها.
             </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ flexDirection: row, flexWrap: 'wrap', gap: 8 }}>
               {missing.map((s) => (
                 <Button key={s} title={s} small variant="white" full={false} onPress={() => add(s)} />
               ))}
@@ -97,15 +97,15 @@ export default function Categories() {
         ) : null}
 
         <Card>
-          <SectionTitle icon="folder">Your categories</SectionTitle>
+          <SectionTitle icon="folder">أصنافك</SectionTitle>
           {categories.length === 0 ? (
-            <EmptyState icon="folder" title="No categories yet"
-              text="Categories make your reports much easier to read." />
+            <EmptyState icon="folder" title="لا توجد أصناف بعد"
+              text="الأصناف تجعل تقاريرك أسهل بكثير في القراءة." />
           ) : categories.map((c, i, arr) => (
             <ListRow
               key={c.id}
               title={c.name}
-              subtitle={`${c.product_count} product${c.product_count === 1 ? '' : 's'}`}
+              subtitle={`${c.product_count} منتج`}
               icon="folder"
               iconTone={colors.lilac}
               iconSoft={colors.lilacSoft}

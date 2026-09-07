@@ -11,7 +11,7 @@ router.use(authenticate);
 
 const employeeSchema = z.object({
   store_id: z.string().uuid().optional(),
-  full_name: z.string().trim().min(2, 'Name is too short').max(120),
+  full_name: z.string().trim().min(2, 'الاسم قصير جدا').max(120),
   job_title: z.string().trim().max(80).optional().nullable(),
   phone: z.string().trim().max(40).optional().nullable(),
   email: z.string().trim().max(160).optional().nullable(),
@@ -56,8 +56,8 @@ router.get('/:id', wrap(async (req, res) => {
     `SELECT e.*, s.currency, s.name AS store_name FROM employees e
        LEFT JOIN stores s ON s.id = e.store_id WHERE e.id = $1`, [req.params.id]
   );
-  if (!employee) throw notFound('Employee not found');
-  if (req.user.role !== 'admin' && employee.store_id !== req.user.store_id) throw notFound('Employee not found');
+  if (!employee) throw notFound('الموظف غير موجود');
+  if (req.user.role !== 'admin' && employee.store_id !== req.user.store_id) throw notFound('الموظف غير موجود');
   const payments = await many(
     'SELECT * FROM salary_payments WHERE employee_id = $1 ORDER BY period DESC LIMIT 36', [employee.id]
   );
@@ -79,8 +79,8 @@ router.post('/', writeLimiter, validate(employeeSchema), scopeStore(), wrap(asyn
 
 router.patch('/:id', writeLimiter, validate(employeeSchema.partial()), wrap(async (req, res) => {
   const existing = await one('SELECT * FROM employees WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Employee not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Employee not found');
+  if (!existing) throw notFound('الموظف غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('الموظف غير موجود');
   req.storeId = existing.store_id;
 
   const sets = [];
@@ -88,7 +88,7 @@ router.patch('/:id', writeLimiter, validate(employeeSchema.partial()), wrap(asyn
   for (const f of ['full_name', 'job_title', 'phone', 'email', 'monthly_salary', 'hired_at', 'is_active', 'note']) {
     if (req.body[f] !== undefined) { values.push(req.body[f]); sets.push(`${f} = $${values.length}`); }
   }
-  if (!sets.length) throw badRequest('Nothing to update');
+  if (!sets.length) throw badRequest('لا يوجد شيء لتحديثه');
   values.push(req.params.id);
   const employee = await one(`UPDATE employees SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
   audit(req, 'employee.update', 'employee', employee.id, req.body);
@@ -97,8 +97,8 @@ router.patch('/:id', writeLimiter, validate(employeeSchema.partial()), wrap(asyn
 
 router.delete('/:id', writeLimiter, wrap(async (req, res) => {
   const existing = await one('SELECT * FROM employees WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Employee not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Employee not found');
+  if (!existing) throw notFound('الموظف غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('الموظف غير موجود');
   await query('DELETE FROM employees WHERE id = $1', [req.params.id]);
   req.storeId = existing.store_id;
   audit(req, 'employee.delete', 'employee', existing.id, { name: existing.full_name });
@@ -107,7 +107,7 @@ router.delete('/:id', writeLimiter, wrap(async (req, res) => {
 
 // ------------------------------------------------------------ pay a salary
 const paySchema = z.object({
-  period: z.string().regex(/^\d{4}-\d{2}$/, 'Use the YYYY-MM format'),
+  period: z.string().regex(/^\d{4}-\d{2}$/, 'استعمل الشكل YYYY-MM'),
   base_amount: z.coerce.number().min(0).optional(),
   bonus: z.coerce.number().min(0).default(0),
   deduction: z.coerce.number().min(0).default(0),
@@ -118,18 +118,18 @@ const paySchema = z.object({
 
 router.post('/:id/salary', writeLimiter, validate(paySchema), wrap(async (req, res) => {
   const employee = await one('SELECT * FROM employees WHERE id = $1', [req.params.id]);
-  if (!employee) throw notFound('Employee not found');
-  if (req.user.role !== 'admin' && employee.store_id !== req.user.store_id) throw notFound('Employee not found');
+  if (!employee) throw notFound('الموظف غير موجود');
+  if (req.user.role !== 'admin' && employee.store_id !== req.user.store_id) throw notFound('الموظف غير موجود');
   req.storeId = employee.store_id;
 
   const b = req.body;
   const base = b.base_amount !== undefined ? b.base_amount : Number(employee.monthly_salary);
   const total = Number((base + Number(b.bonus) - Number(b.deduction)).toFixed(2));
-  if (total < 0) throw badRequest('Deductions cannot exceed the salary');
+  if (total < 0) throw badRequest('الاقتطاعات لا يمكن أن تتجاوز الراتب');
 
   const exists = await one('SELECT id FROM salary_payments WHERE employee_id = $1 AND period = $2',
     [employee.id, b.period]);
-  if (exists) throw conflict(`${employee.full_name} was already paid for ${b.period}`);
+  if (exists) throw conflict(`${employee.full_name} تقاضى راتب ${b.period} من قبل`);
 
   const payment = await tx(async (c) => {
     const { rows } = await c.query(
@@ -142,8 +142,8 @@ router.post('/:id/salary', writeLimiter, validate(paySchema), wrap(async (req, r
       await c.query(
         `INSERT INTO expenses (store_id, user_id, category, label, amount, spent_at, note)
          VALUES ($1,$2,'salary',$3,$4,COALESCE($5::date, CURRENT_DATE),$6)`,
-        [employee.store_id, req.user.id, `Salary ${b.period} - ${employee.full_name}`, total,
-         b.paid_at || null, 'Auto-created from payroll']
+        [employee.store_id, req.user.id, `راتب ${b.period} — ${employee.full_name}`, total,
+         b.paid_at || null, 'أُنشئ تلقائيا من قائمة الأجور']
       );
     }
     return rows[0];
@@ -156,8 +156,8 @@ router.post('/:id/salary', writeLimiter, validate(paySchema), wrap(async (req, r
 router.delete('/:id/salary/:paymentId', writeLimiter, wrap(async (req, res) => {
   const payment = await one('SELECT * FROM salary_payments WHERE id = $1 AND employee_id = $2',
     [req.params.paymentId, req.params.id]);
-  if (!payment) throw notFound('Payment not found');
-  if (req.user.role !== 'admin' && payment.store_id !== req.user.store_id) throw notFound('Payment not found');
+  if (!payment) throw notFound('الدفعة غير موجودة');
+  if (req.user.role !== 'admin' && payment.store_id !== req.user.store_id) throw notFound('الدفعة غير موجودة');
   await query('DELETE FROM salary_payments WHERE id = $1', [payment.id]);
   req.storeId = payment.store_id;
   audit(req, 'employee.salary_deleted', 'employee', req.params.id, { period: payment.period });

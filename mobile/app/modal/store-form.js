@@ -3,13 +3,14 @@ import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { api } from '../../src/api';
-import { colors, radius, spacing, type, font } from '../../src/theme';
+import { colors, row, type } from '../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
   SectionTitle, Switch, Feather, ListRow, Badge,
 } from '../../src/components/ui';
 
 const SWATCHES = ['#E8813A', '#4E8D7C', '#7C6BD1', '#3E93C9', '#E4698A', '#F0B429', '#8E6E53', '#5E7C8B'];
+const ROLES = { manager: 'مسؤول المحل', staff: 'بائع' };
 
 export default function StoreForm() {
   const { id } = useLocalSearchParams();
@@ -23,7 +24,7 @@ export default function StoreForm() {
 
   const [form, setForm] = useState({
     name: '', code: '', city: '', address: '', phone: '',
-    currency: 'DZD', color: '#E8813A', monthly_target: '', is_active: true,
+    currency: 'دج', color: '#E8813A', monthly_target: '', is_active: true,
   });
 
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
@@ -36,7 +37,7 @@ export default function StoreForm() {
         const s = data.store;
         setForm({
           name: s.name || '', code: s.code || '', city: s.city || '', address: s.address || '',
-          phone: s.phone || '', currency: s.currency || 'DZD', color: s.color || '#E8813A',
+          phone: s.phone || '', currency: s.currency || 'دج', color: s.color || '#E8813A',
           monthly_target: String(s.monthly_target ?? ''), is_active: s.is_active,
         });
         setAccounts(data.staff || []);
@@ -50,9 +51,9 @@ export default function StoreForm() {
 
   async function save() {
     setError(null);
-    if (form.name.trim().length < 2) return setError('Give the store a name');
+    if (form.name.trim().length < 2) return setError('أعطِ المحل اسما');
     if (!/^[a-zA-Z0-9_-]{2,24}$/.test(form.code.trim())) {
-      return setError('Code should be 2-24 letters, digits, - or _ (for example NOUR-01)');
+      return setError('الرمز من 2 إلى 24 حرفا لاتينيا أو رقما أو - أو _ (مثال: MAG-01)');
     }
     setSaving(true);
     try {
@@ -62,7 +63,7 @@ export default function StoreForm() {
         city: form.city.trim() || null,
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
-        currency: form.currency.trim() || 'DZD',
+        currency: form.currency.trim() || 'دج',
         color: form.color,
         monthly_target: Number(form.monthly_target) || 0,
         is_active: form.is_active,
@@ -83,12 +84,12 @@ export default function StoreForm() {
 
   function remove() {
     Alert.alert(
-      'Delete this store?',
-      'Everything inside it — products, sales, expenses and logins — is removed for good.',
+      'حذف هذا المحل؟',
+      'كل ما بداخله — المنتجات والمبيعات والمصاريف وحسابات الدخول — سيُحذف نهائيا.',
       [
-        { text: 'Keep it', style: 'cancel' },
+        { text: 'إبقاء', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'حذف',
           style: 'destructive',
           onPress: async () => {
             try { await api.del(`/api/stores/${id}`); router.replace('/admin/stores'); }
@@ -99,39 +100,39 @@ export default function StoreForm() {
     );
   }
 
-  if (loading) return <Loader text="Loading the store…" />;
+  if (loading) return <Loader text="جاري تحميل المحل…" />;
 
   return (
     <>
-      <Header title={editing ? 'Store settings' : 'New store'}
-        subtitle={editing ? form.name : 'Step 1 of 2'} onBack={() => router.back()} />
+      <Header title={editing ? 'إعدادات المحل' : 'محل جديد'}
+        subtitle={editing ? form.name : 'الخطوة 1 من 2'} onBack={() => router.back()} />
       <KeyboardScreen>
         <ErrorNote message={error} />
 
         <Card style={{ gap: 14 }}>
-          <Field label="Store name" value={form.name} onChangeText={set('name')}
-            placeholder="Nour Boutique — Centre" />
-          <Field label="Short code" value={form.code} onChangeText={set('code')}
-            placeholder="NOUR-01" autoCapitalize="characters" autoCorrect={false}
-            hint="A quick label you will see on receipts and reports." />
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Field style={{ flex: 1 }} label="City" value={form.city} onChangeText={set('city')} placeholder="Alger" />
-            <Field style={{ flex: 1 }} label="Currency" value={form.currency} onChangeText={set('currency')}
-              placeholder="DZD" autoCapitalize="characters" />
+          <Field label="اسم المحل" value={form.name} onChangeText={set('name')}
+            placeholder="مثال: محل النور — وسط المدينة" />
+          <Field label="رمز قصير" value={form.code} onChangeText={set('code')}
+            placeholder="MAG-01" autoCapitalize="characters" autoCorrect={false}
+            hint="رمز سريع يظهر في الفواتير والتقارير (حروف لاتينية وأرقام)." />
+          <View style={{ flexDirection: row, gap: 12 }}>
+            <Field style={{ flex: 1 }} label="المدينة" value={form.city} onChangeText={set('city')} placeholder="الجزائر" />
+            <Field style={{ flex: 1 }} label="العملة" value={form.currency} onChangeText={set('currency')}
+              placeholder="دج" />
           </View>
-          <Field label="Address" value={form.address} onChangeText={set('address')}
-            placeholder="12 rue Didouche Mourad" />
-          <Field label="Phone" value={form.phone} onChangeText={set('phone')}
-            placeholder="+213 …" keyboardType="phone-pad" />
-          <Field label="Monthly sales target" value={form.monthly_target} onChangeText={set('monthly_target')}
+          <Field label="العنوان" value={form.address} onChangeText={set('address')}
+            placeholder="مثال: 12 شارع ديدوش مراد" />
+          <Field label="الهاتف" value={form.phone} onChangeText={set('phone')}
+            placeholder="0770000000" keyboardType="phone-pad" />
+          <Field label="الهدف الشهري للمبيعات" value={form.monthly_target} onChangeText={set('monthly_target')}
             placeholder="0" keyboardType="numeric"
-            hint="Used for the progress ring on the dashboard. Leave 0 to hide it." />
+            hint="يستعمل في دائرة التقدم في الصفحة الرئيسية. اتركه 0 لإخفائه." />
         </Card>
 
         <Card>
-          <SectionTitle icon="droplet">Store colour</SectionTitle>
+          <SectionTitle icon="droplet">لون المحل</SectionTitle>
           <Text style={[type.tiny, { marginTop: 4, marginBottom: 12 }]}>
-            Helps you tell your stores apart at a glance.
+            يساعدك على التمييز بين محلاتك بنظرة واحدة.
           </Text>
           <View style={styles.swatches}>
             {SWATCHES.map((c) => (
@@ -145,30 +146,30 @@ export default function StoreForm() {
 
         {editing ? (
           <Card>
-            <Switch label="Store is open" hint="Turn this off to freeze the store and its logins."
+            <Switch label="المحل مفتوح" hint="أطفئه لتجميد المحل وحسابات الدخول الخاصة به."
               value={form.is_active} onChange={set('is_active')} />
           </Card>
         ) : null}
 
         {editing ? (
           <Card>
-            <SectionTitle icon="key" action="Add login"
+            <SectionTitle icon="key" action="إضافة حساب"
               onAction={() => router.push({ pathname: '/modal/account-form', params: { storeId: id } })}>
-              Logins for this store
+              حسابات الدخول لهذا المحل
             </SectionTitle>
             {accounts.length === 0 ? (
               <Text style={[type.tiny, { paddingVertical: 12 }]}>
-                No one can sign into this store yet. Create a login and hand it to the person who runs it.
+                لا أحد يستطيع الدخول لهذا المحل بعد. أنشئ حسابا وسلّمه لمن يديره.
               </Text>
             ) : accounts.map((a, i, arr) => (
               <ListRow
                 key={a.id}
                 title={a.full_name}
-                subtitle={`${a.email} · ${a.role}`}
+                subtitle={`${a.email} · ${ROLES[a.role] || a.role}`}
                 icon="key"
                 iconTone={colors.lilac}
                 iconSoft={colors.lilacSoft}
-                right={<Badge text={a.is_active ? 'Active' : 'Off'}
+                right={<Badge text={a.is_active ? 'نشط' : 'معطّل'}
                   tone={a.is_active ? colors.good : colors.bad}
                   soft={a.is_active ? colors.goodSoft : colors.badSoft} />}
                 onPress={() => router.push({
@@ -181,11 +182,11 @@ export default function StoreForm() {
           </Card>
         ) : null}
 
-        <Button title={editing ? 'Save changes' : 'Create store & add a login'} icon="check"
+        <Button title={editing ? 'حفظ التعديلات' : 'إنشاء المحل وإضافة حساب'} icon="check"
           onPress={save} loading={saving} />
 
         {editing ? (
-          <Button title="Delete this store" icon="trash-2" variant="danger" onPress={remove} />
+          <Button title="حذف هذا المحل" icon="trash-2" variant="danger" onPress={remove} />
         ) : null}
       </KeyboardScreen>
     </>
@@ -193,7 +194,7 @@ export default function StoreForm() {
 }
 
 const styles = StyleSheet.create({
-  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  swatches: { flexDirection: row, flexWrap: 'wrap', gap: 10 },
   swatch: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   swatchOn: { borderWidth: 3, borderColor: colors.ink },
 });

@@ -21,6 +21,6 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_NAME
-        value: Owner
+        value: المالك
       - key: CORS_ORIGINS
         value: "*"

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS stores (
   address        text,
   phone          text,
   city           text,
-  currency       text NOT NULL DEFAULT 'DZD',
+  currency       text NOT NULL DEFAULT 'دج',
   color          text NOT NULL DEFAULT '#E8813A',
   monthly_target numeric(14,2) NOT NULL DEFAULT 0,
   is_active      boolean NOT NULL DEFAULT true,
@@ -224,3 +224,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS audit_created_idx ON audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_store_idx ON audit_logs (store_id, created_at DESC);
+
+-- العملة الافتراضية بالعربية (آمن على قاعدة موجودة مسبقا)
+ALTER TABLE stores ALTER COLUMN currency SET DEFAULT 'دج';

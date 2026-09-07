@@ -23,7 +23,7 @@ const purchaseSchema = z.object({
     size: z.string().trim().max(40).optional().nullable(),
     color: z.string().trim().max(60).optional().nullable(),
     unit: z.string().trim().max(24).optional(),
-  })).min(1, 'Add at least one item').max(100),
+  })).min(1, 'أضف قطعة واحدة على الأقل').max(100),
 });
 
 // ------------------------------------------------------------ list
@@ -53,8 +53,8 @@ router.get('/:id', wrap(async (req, res) => {
        LEFT JOIN users u ON u.id = p.user_id
        LEFT JOIN stores st ON st.id = p.store_id WHERE p.id = $1`, [req.params.id]
   );
-  if (!purchase) throw notFound('Purchase not found');
-  if (req.user.role !== 'admin' && purchase.store_id !== req.user.store_id) throw notFound('Purchase not found');
+  if (!purchase) throw notFound('عملية التموين غير موجودة');
+  if (req.user.role !== 'admin' && purchase.store_id !== req.user.store_id) throw notFound('عملية التموين غير موجودة');
   const items = await many('SELECT * FROM purchase_items WHERE purchase_id = $1', [purchase.id]);
   res.json({ purchase, items });
 }));
@@ -84,8 +84,8 @@ router.post('/', writeLimiter, validate(purchaseSchema), scopeStore(), wrap(asyn
         const { rows: pr } = await c.query(
           'SELECT id, store_id FROM products WHERE id = $1 FOR UPDATE', [productId]
         );
-        if (!pr[0]) throw badRequest(`Product "${i.name}" no longer exists`);
-        if (pr[0].store_id !== storeId) throw badRequest(`"${i.name}" does not belong to this store`);
+        if (!pr[0]) throw badRequest(`المنتج "${i.name}" لم يعد موجودا`);
+        if (pr[0].store_id !== storeId) throw badRequest(`"${i.name}" لا ينتمي إلى هذا المحل`);
         // Moving-average cost so profit stays honest after a price change.
         const { rows: upd } = await c.query(
           `UPDATE products
@@ -100,7 +100,7 @@ router.post('/', writeLimiter, validate(purchaseSchema), scopeStore(), wrap(asyn
         await c.query(
           `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
            VALUES ($1,$2,$3,'in',$4,$5,$6)`,
-          [storeId, productId, req.user.id, i.qty, upd[0].stock, `Purchase ${reference}`]
+          [storeId, productId, req.user.id, i.qty, upd[0].stock, `تموين ${reference}`]
         );
       } else {
         const { rows: np } = await c.query(
@@ -113,7 +113,7 @@ router.post('/', writeLimiter, validate(purchaseSchema), scopeStore(), wrap(asyn
         await c.query(
           `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
            VALUES ($1,$2,$3,'in',$4,$4,$5)`,
-          [storeId, productId, req.user.id, i.qty, `Purchase ${reference}`]
+          [storeId, productId, req.user.id, i.qty, `تموين ${reference}`]
         );
       }
 

@@ -11,7 +11,7 @@ router.use(authenticate);
 
 const productSchema = z.object({
   store_id: z.string().uuid().optional(),
-  name: z.string().trim().min(1, 'Name is required').max(160),
+  name: z.string().trim().min(1, 'الاسم مطلوب').max(160),
   sku: z.string().trim().max(60).optional().nullable(),
   category_id: z.string().uuid().optional().nullable(),
   brand: z.string().trim().max(80).optional().nullable(),
@@ -91,8 +91,8 @@ router.post('/meta/categories', writeLimiter,
 
 router.delete('/meta/categories/:id', writeLimiter, wrap(async (req, res) => {
   const cat = await one('SELECT * FROM categories WHERE id = $1', [req.params.id]);
-  if (!cat) throw notFound('Category not found');
-  if (req.user.role !== 'admin' && cat.store_id !== req.user.store_id) throw notFound('Category not found');
+  if (!cat) throw notFound('الصنف غير موجود');
+  if (req.user.role !== 'admin' && cat.store_id !== req.user.store_id) throw notFound('الصنف غير موجود');
   await query('DELETE FROM categories WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -103,8 +103,8 @@ router.get('/:id', wrap(async (req, res) => {
     `SELECT p.*, c.name AS category_name FROM products p
        LEFT JOIN categories c ON c.id = p.category_id WHERE p.id = $1`, [req.params.id]
   );
-  if (!product) throw notFound('Product not found');
-  if (req.user.role !== 'admin' && product.store_id !== req.user.store_id) throw notFound('Product not found');
+  if (!product) throw notFound('المنتج غير موجود');
+  if (req.user.role !== 'admin' && product.store_id !== req.user.store_id) throw notFound('المنتج غير موجود');
   const movements = await many(
     `SELECT m.*, u.full_name AS user_name FROM stock_movements m
        LEFT JOIN users u ON u.id = m.user_id
@@ -129,7 +129,7 @@ router.post('/', writeLimiter, validate(productSchema), scopeStore(), wrap(async
     if (Number(b.stock) > 0) {
       await c.query(
         `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
-         VALUES ($1,$2,$3,'in',$4,$4,'Opening stock')`,
+         VALUES ($1,$2,$3,'in',$4,$4,'مخزون البداية')`,
         [req.storeId, created.id, req.user.id, b.stock]
       );
     }
@@ -142,8 +142,8 @@ router.post('/', writeLimiter, validate(productSchema), scopeStore(), wrap(async
 // ------------------------------------------------------------ update
 router.patch('/:id', writeLimiter, validate(productSchema.partial()), wrap(async (req, res) => {
   const existing = await one('SELECT * FROM products WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Product not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Product not found');
+  if (!existing) throw notFound('المنتج غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المنتج غير موجود');
   req.storeId = existing.store_id;
 
   const fields = ['category_id', 'sku', 'name', 'brand', 'color', 'size', 'gender', 'season', 'unit',
@@ -160,7 +160,7 @@ router.patch('/:id', writeLimiter, validate(productSchema.partial()), wrap(async
     values.push(req.body.stock);
     sets.push(`stock = $${values.length}`);
   }
-  if (!sets.length) throw badRequest('Nothing to update');
+  if (!sets.length) throw badRequest('لا يوجد شيء لتحديثه');
   sets.push('updated_at = now()');
   values.push(req.params.id);
 
@@ -172,7 +172,7 @@ router.patch('/:id', writeLimiter, validate(productSchema.partial()), wrap(async
     const delta = Number(req.body.stock) - Number(existing.stock);
     await query(
       `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
-       VALUES ($1,$2,$3,'adjust',$4,$5,'Manual edit')`,
+       VALUES ($1,$2,$3,'adjust',$4,$5,'تعديل يدوي')`,
       [existing.store_id, existing.id, req.user.id, delta, req.body.stock]
     );
   }
@@ -182,19 +182,19 @@ router.patch('/:id', writeLimiter, validate(productSchema.partial()), wrap(async
 
 // ------------------------------------------------------------ stock adjust
 const adjustSchema = z.object({
-  qty: z.coerce.number().refine((v) => v !== 0, 'Quantity cannot be zero'),
+  qty: z.coerce.number().refine((v) => v !== 0, 'الكمية لا يمكن أن تكون صفرا'),
   reason: z.string().trim().max(160).optional().nullable(),
 });
 
 router.post('/:id/stock', writeLimiter, validate(adjustSchema), wrap(async (req, res) => {
   const existing = await one('SELECT * FROM products WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Product not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Product not found');
+  if (!existing) throw notFound('المنتج غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المنتج غير موجود');
   req.storeId = existing.store_id;
 
   const qty = Number(req.body.qty);
   const next = Number(existing.stock) + qty;
-  if (next < 0) throw badRequest('Not enough stock for this movement');
+  if (next < 0) throw badRequest('المخزون غير كاف لهذه الحركة');
 
   const product = await tx(async (c) => {
     const { rows } = await c.query(
@@ -204,7 +204,7 @@ router.post('/:id/stock', writeLimiter, validate(adjustSchema), wrap(async (req,
       `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [existing.store_id, existing.id, req.user.id, qty > 0 ? 'in' : 'out', qty, next,
-       req.body.reason || (qty > 0 ? 'Stock received' : 'Stock removed')]
+       req.body.reason || (qty > 0 ? 'استلام بضاعة' : 'خصم من المخزون')]
     );
     return rows[0];
   });
@@ -215,8 +215,8 @@ router.post('/:id/stock', writeLimiter, validate(adjustSchema), wrap(async (req,
 // ------------------------------------------------------------ delete
 router.delete('/:id', writeLimiter, wrap(async (req, res) => {
   const existing = await one('SELECT * FROM products WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('Product not found');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('Product not found');
+  if (!existing) throw notFound('المنتج غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المنتج غير موجود');
   await query('DELETE FROM products WHERE id = $1', [req.params.id]);
   req.storeId = existing.store_id;
   audit(req, 'product.delete', 'product', existing.id, { name: existing.name });
