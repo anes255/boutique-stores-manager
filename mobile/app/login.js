@@ -1,0 +1,155 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useAuth } from '../src/auth';
+import { getBaseUrl, setBaseUrl } from '../src/api';
+import { colors, font, radius, shadow, spacing, type } from '../src/theme';
+import { Button, Field, Feather, ErrorNote } from '../src/components/ui';
+
+export default function Login() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { login } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [serverOpen, setServerOpen] = useState(false);
+  const [server, setServer] = useState(getBaseUrl());
+
+  async function onSubmit() {
+    if (!email.trim() || !password) {
+      setError('Enter your email and password to continue');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const user = await login(email, password);
+      router.replace(user.role === 'admin' ? '/admin' : `/store/${user.store_id}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveServer() {
+    const next = await setBaseUrl(server);
+    setServer(next);
+    setServerOpen(false);
+    setError(null);
+  }
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={[styles.wrap, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 30 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.brandBlock}>
+          <View style={styles.mark}><Text style={styles.markText}>B</Text></View>
+          <Text style={[type.hero, { marginTop: 18 }]}>Welcome back</Text>
+          <Text style={[type.body, { textAlign: 'center' }]}>
+            Sign in to open your shop floor, your numbers and your team.
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Field
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@boutique.com"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="username"
+            returnKeyType="next"
+          />
+
+          <View style={{ gap: 6 }}>
+            <Text style={[type.label, { color: colors.inkSoft }]}>Password</Text>
+            <View style={styles.passwordWrap}>
+              <Field
+                style={{ flex: 1 }}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={onSubmit}
+              />
+              <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eye} hitSlop={8}>
+                <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={colors.inkMuted} />
+              </Pressable>
+            </View>
+          </View>
+
+          <ErrorNote message={error} />
+
+          <Button title="Sign in" onPress={onSubmit} loading={busy} icon="log-in" />
+        </View>
+
+        <Pressable onPress={() => setServerOpen((v) => !v)} style={styles.serverToggle} hitSlop={8}>
+          <Feather name="server" size={13} color={colors.inkMuted} />
+          <Text style={type.tiny} numberOfLines={1}>{getBaseUrl()}</Text>
+          <Feather name={serverOpen ? 'chevron-up' : 'chevron-down'} size={13} color={colors.inkMuted} />
+        </Pressable>
+
+        {serverOpen ? (
+          <View style={styles.serverCard}>
+            <Field
+              label="Server address"
+              value={server}
+              onChangeText={setServer}
+              placeholder="http://192.168.1.10:4000"
+              autoCapitalize="none"
+              autoCorrect={false}
+              hint="Change this only if the app cannot reach your backend."
+            />
+            <Button title="Save address" variant="soft" small onPress={saveServer} />
+          </View>
+        ) : null}
+
+        <Text style={[type.tiny, { textAlign: 'center', marginTop: 6 }]}>
+          Accounts are created by the owner. Ask them for your store login.
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { paddingHorizontal: spacing.lg, gap: spacing.lg, flexGrow: 1, justifyContent: 'center' },
+  brandBlock: { alignItems: 'center', gap: 6 },
+  mark: {
+    width: 76, height: 76, borderRadius: 27, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center', ...shadow(3),
+  },
+  markText: { fontFamily: font.display, fontSize: 38, color: colors.white },
+  card: {
+    backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg,
+    gap: spacing.md, borderWidth: 1, borderColor: colors.lineSoft, ...shadow(2),
+  },
+  passwordWrap: { flexDirection: 'row', alignItems: 'center' },
+  eye: { position: 'absolute', right: 14, padding: 4 },
+  serverToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'center',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.bgAlt,
+    maxWidth: '90%',
+  },
+  serverCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
+    gap: spacing.sm, borderWidth: 1, borderColor: colors.lineSoft,
+  },
+});

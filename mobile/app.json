@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Boutique",
+    "slug": "stores-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anes.boutiquemanager"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF1E2",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.anes.boutiquemanager"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-splash-screen"
+    ],
+    "scheme": "boutique",
+    "backgroundColor": "#FFF8F1",
+    "newArchEnabled": true,
+    "extra": {
+      "apiUrl": "http://localhost:4000"
+    }
+  }
+}
