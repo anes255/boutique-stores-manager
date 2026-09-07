@@ -3,7 +3,7 @@
  * Run with:  npm run seed
  * It is idempotent: stores are matched on their code.
  */
-require('dotenv').config();
+require('../lib/env');
 const bcrypt = require('bcryptjs');
 const { pool, one, query, tx } = require('../lib/db');
 

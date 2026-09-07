@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('./lib/env');
 
 const express = require('express');
 const helmet = require('helmet');
@@ -100,15 +100,33 @@ app.use((err, req, res, _next) => {
 });
 
 const port = Number(process.env.PORT || 4000);
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`stores-manager API listening on :${port}`);
-});
 
-for (const sig of ['SIGTERM', 'SIGINT']) {
-  process.on(sig, () => {
-    console.log(`${sig} received, closing`);
-    server.close(() => process.exit(0));
+// Hosts that boot with a bare `node server.js` get their schema applied here.
+// The schema is idempotent, so this is a no-op on every deploy after the first.
+// Set MIGRATE_ON_BOOT=false if you would rather run `npm run migrate` yourself.
+async function bootstrap() {
+  if (process.env.MIGRATE_ON_BOOT !== 'false') {
+    try {
+      const { runMigrations } = require('./db/migrate');
+      await runMigrations();
+    } catch (err) {
+      console.error('FATAL: could not prepare the database:', err.message);
+      process.exit(1);
+    }
+  }
+
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`stores-manager API listening on :${port}`);
   });
+
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.on(sig, () => {
+      console.log(`${sig} received, closing`);
+      server.close(() => process.exit(0));
+    });
+  }
 }
+
+if (require.main === module || process.env.NODE_ENV !== 'test') bootstrap();
 
 module.exports = app;
