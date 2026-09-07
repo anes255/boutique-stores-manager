@@ -34,7 +34,7 @@ export default function StoreTeam() {
   if (loading && !employees.length) return <Loader text="جاري تحميل الفريق…" />;
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Header title="الفريق" subtitle={store?.name} />
       <Screen refreshing={refreshing} onRefresh={reload}>
         <ErrorNote message={error} onRetry={reload} />
@@ -153,7 +153,7 @@ export default function StoreTeam() {
 
       <Fab icon="user-plus" label="إضافة"
         onPress={() => router.push({ pathname: '/modal/employee-form', params: { storeId } })} />
-    </>
+    </View>
   );
 }
 

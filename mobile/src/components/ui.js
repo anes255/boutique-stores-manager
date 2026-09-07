@@ -352,12 +352,16 @@ export function ErrorNote({ message, onRetry }) {
   );
 }
 
+/**
+ * زر الإضافة العائم: أسفل يسار الشاشة.
+ * يوضع داخل مساحة التبويب نفسها، وشريط التبويبات يتكفل بالمنطقة الآمنة،
+ * لذلك تكفي مسافة صغيرة من الأسفل.
+ */
 export function Fab({ icon = 'plus', onPress, label }) {
-  const insets = useSafeAreaInsets();
   return (
     <Pressable
       onPress={() => { tap(); onPress(); }}
-      style={({ pressed }) => [styles.fab, { bottom: insets.bottom + 84 }, pressed && { transform: [{ scale: 0.95 }] }]}
+      style={({ pressed }) => [styles.fab, pressed && { transform: [{ scale: 0.95 }] }]}
     >
       <Feather name={icon} size={20} color={colors.white} />
       {label ? <Text style={[styles.buttonText, { color: colors.white }]}>{label}</Text> : null}
@@ -448,9 +452,11 @@ const styles = StyleSheet.create({
     flexDirection: row, alignItems: 'center', gap: 9, backgroundColor: colors.badSoft,
     borderRadius: radius.md, padding: 12,
   },
+  // زر الإضافة: أسفل يسار الشاشة، فوق شريط التبويبات مباشرة
   fab: {
-    position: 'absolute', left: spacing.md, flexDirection: row, alignItems: 'center', gap: 8,
-    backgroundColor: colors.primary, paddingHorizontal: 18, height: 54, borderRadius: 27,
+    position: 'absolute', left: spacing.md, bottom: spacing.md,
+    flexDirection: row, alignItems: 'center', gap: 8,
+    backgroundColor: colors.primary, paddingHorizontal: 18, height: 52, borderRadius: 26,
     justifyContent: 'center', ...shadow(3),
   },
 });

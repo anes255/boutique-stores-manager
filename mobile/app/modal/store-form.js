@@ -22,9 +22,10 @@ export default function StoreForm() {
   const [error, setError] = useState(null);
   const [accounts, setAccounts] = useState([]);
 
+  // العملة ثابتة (دج) ولا تظهر في النموذج
   const [form, setForm] = useState({
     name: '', code: '', city: '', address: '', phone: '',
-    currency: 'دج', color: '#E8813A', monthly_target: '', is_active: true,
+    color: '#E8813A', monthly_target: '', is_active: true,
   });
 
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
@@ -37,7 +38,7 @@ export default function StoreForm() {
         const s = data.store;
         setForm({
           name: s.name || '', code: s.code || '', city: s.city || '', address: s.address || '',
-          phone: s.phone || '', currency: s.currency || 'دج', color: s.color || '#E8813A',
+          phone: s.phone || '', color: s.color || '#E8813A',
           monthly_target: String(s.monthly_target ?? ''), is_active: s.is_active,
         });
         setAccounts(data.staff || []);
@@ -63,7 +64,6 @@ export default function StoreForm() {
         city: form.city.trim() || null,
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
-        currency: form.currency.trim() || 'دج',
         color: form.color,
         monthly_target: Number(form.monthly_target) || 0,
         is_active: form.is_active,
@@ -115,11 +115,7 @@ export default function StoreForm() {
           <Field label="رمز قصير" value={form.code} onChangeText={set('code')}
             placeholder="MAG-01" autoCapitalize="characters" autoCorrect={false}
             hint="رمز سريع يظهر في الفواتير والتقارير (حروف لاتينية وأرقام)." />
-          <View style={{ flexDirection: row, gap: 12 }}>
-            <Field style={{ flex: 1 }} label="المدينة" value={form.city} onChangeText={set('city')} placeholder="الجزائر" />
-            <Field style={{ flex: 1 }} label="العملة" value={form.currency} onChangeText={set('currency')}
-              placeholder="دج" />
-          </View>
+          <Field label="المدينة" value={form.city} onChangeText={set('city')} placeholder="الجزائر" />
           <Field label="العنوان" value={form.address} onChangeText={set('address')}
             placeholder="مثال: 12 شارع ديدوش مراد" />
           <Field label="الهاتف" value={form.phone} onChangeText={set('phone')}

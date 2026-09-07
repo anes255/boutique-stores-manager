@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../src/auth';
-import { getBaseUrl, setBaseUrl } from '../src/api';
 import { colors, font, radius, row, shadow, spacing, type } from '../src/theme';
 import { Button, Field, Feather, ErrorNote } from '../src/components/ui';
 
@@ -18,9 +17,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-
-  const [serverOpen, setServerOpen] = useState(false);
-  const [server, setServer] = useState(getBaseUrl());
 
   async function onSubmit() {
     if (!email.trim() || !password) {
@@ -37,13 +33,6 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function saveServer() {
-    const next = await setBaseUrl(server);
-    setServer(next);
-    setServerOpen(false);
-    setError(null);
   }
 
   return (
@@ -99,27 +88,6 @@ export default function Login() {
           <Button title="دخول" onPress={onSubmit} loading={busy} icon="log-in" />
         </View>
 
-        <Pressable onPress={() => setServerOpen((v) => !v)} style={styles.serverToggle} hitSlop={8}>
-          <Feather name="server" size={13} color={colors.inkMuted} />
-          <Text style={[type.tiny, { writingDirection: 'ltr' }]} numberOfLines={1}>{getBaseUrl()}</Text>
-          <Feather name={serverOpen ? 'chevron-up' : 'chevron-down'} size={13} color={colors.inkMuted} />
-        </Pressable>
-
-        {serverOpen ? (
-          <View style={styles.serverCard}>
-            <Field
-              label="عنوان الخادم"
-              value={server}
-              onChangeText={setServer}
-              placeholder="http://192.168.1.10:4000"
-              autoCapitalize="none"
-              autoCorrect={false}
-              hint="لا تغيّر هذا إلا إذا كان التطبيق لا يصل إلى الخادم."
-            />
-            <Button title="حفظ العنوان" variant="soft" small onPress={saveServer} />
-          </View>
-        ) : null}
-
         <Text style={[type.tiny, { textAlign: 'center', marginTop: 6 }]}>
           حسابات الدخول ينشئها المالك. اطلب منه بيانات الدخول الخاصة بمحلك.
         </Text>
@@ -142,13 +110,4 @@ const styles = StyleSheet.create({
   },
   passwordWrap: { flexDirection: row, alignItems: 'center' },
   eye: { position: 'absolute', left: 14, padding: 4 },
-  serverToggle: {
-    flexDirection: row, alignItems: 'center', gap: 7, alignSelf: 'center',
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.bgAlt,
-    maxWidth: '90%',
-  },
-  serverCard: {
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
-    gap: spacing.sm, borderWidth: 1, borderColor: colors.lineSoft,
-  },
 });

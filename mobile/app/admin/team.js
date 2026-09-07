@@ -37,7 +37,7 @@ export default function AdminTeam() {
   if (loading && !employees.length) return <Loader text="جاري تحميل الفريق…" />;
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Header title="فريقك" subtitle="الموظفون والرواتب" />
       <Screen refreshing={refreshing} onRefresh={reload}>
         <ErrorNote message={error} onRetry={reload} />
@@ -137,7 +137,7 @@ export default function AdminTeam() {
           params: { storeId: storeId || stores[0].id },
         })} />
       ) : null}
-    </>
+    </View>
   );
 }
 

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useAuth } from '../../src/auth';
-import { getBaseUrl, setBaseUrl } from '../../src/api';
 import { colors, font, radius, row, spacing, type } from '../../src/theme';
 import {
   Screen, Header, Card, SectionTitle, Button, Field, Loader,
@@ -20,7 +19,6 @@ export default function Settings() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
-  const [server, setServer] = useState(getBaseUrl());
 
   async function onChangePassword() {
     setError(null);
@@ -86,17 +84,6 @@ export default function Settings() {
             ) : null}
             <Button title="تحديث كلمة السر" icon="check" onPress={onChangePassword} loading={busy} />
           </View>
-        </Card>
-
-        <Card>
-          <SectionTitle icon="server">الخادم</SectionTitle>
-          <Text style={[type.tiny, { marginTop: 4, marginBottom: 10 }]}>
-            المكان الذي يقرأ منه التطبيق بياناتك. لا تغيّره إلا إذا نقلت الخادم.
-          </Text>
-          <Field value={server} onChangeText={setServer} autoCapitalize="none" autoCorrect={false}
-            placeholder="https://your-api.onrender.com" />
-          <Button title="حفظ عنوان الخادم" variant="white" small style={{ marginTop: 10 }}
-            onPress={async () => { const v = await setBaseUrl(server); setServer(v); setMessage('تم حفظ عنوان الخادم.'); }} />
         </Card>
 
         <Card>

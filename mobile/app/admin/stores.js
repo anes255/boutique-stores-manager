@@ -33,7 +33,7 @@ export default function Stores() {
   const groupRevenue = stats.reduce((s, x) => s + Number(x.revenue || 0), 0);
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Header title="محلاتك" subtitle={`${stats.length} محل`} />
       <Screen refreshing={refreshing} onRefresh={reload}>
         <ErrorNote message={error} onRetry={reload} />
@@ -118,7 +118,7 @@ export default function Stores() {
         })}
       </Screen>
       <Fab icon="plus" label="محل جديد" onPress={() => router.push('/modal/store-form')} />
-    </>
+    </View>
   );
 }
 

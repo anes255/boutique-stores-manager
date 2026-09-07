@@ -78,7 +78,7 @@ export default function Products() {
   if (loading && !all.length) return <Loader text="جاري جرد المخزون…" />;
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Header title="المنتجات" subtitle={data.store?.store?.name}
         right={
           <Pressable style={styles.iconBtn}
@@ -191,7 +191,7 @@ export default function Products() {
 
       <Fab icon="plus" label="منتج جديد"
         onPress={() => router.push({ pathname: '/modal/product-form', params: { storeId } })} />
-    </>
+    </View>
   );
 }
 
