@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,21 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState(null);
+  const slowTimer = useRef(null);
+
+  // الخادم المجاني ينام بعد فترة خمول، وإيقاظه يأخذ وقتا.
+  // نطمئن المستخدم بدل أن يظن أن التطبيق معلّق.
+  useEffect(() => {
+    if (busy) {
+      slowTimer.current = setTimeout(() => setSlow(true), 6000);
+    } else {
+      clearTimeout(slowTimer.current);
+      setSlow(false);
+    }
+    return () => clearTimeout(slowTimer.current);
+  }, [busy]);
 
   async function onSubmit() {
     if (!email.trim() || !password) {
@@ -86,6 +100,12 @@ export default function Login() {
           <ErrorNote message={error} />
 
           <Button title="دخول" onPress={onSubmit} loading={busy} icon="log-in" />
+
+          {slow ? (
+            <Text style={[type.tiny, { textAlign: 'center' }]}>
+              جاري إيقاظ الخادم… قد يستغرق هذا دقيقة في أول استعمال.
+            </Text>
+          ) : null}
         </View>
 
         <Text style={[type.tiny, { textAlign: 'center', marginTop: 6 }]}>

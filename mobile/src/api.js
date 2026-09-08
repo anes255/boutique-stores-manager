@@ -4,24 +4,19 @@ import { storage } from './storage';
 const OVERRIDE_KEY = 'api_url_override';
 
 /**
- * In Expo Go the phone cannot reach "localhost", so we derive the dev
- * machine's LAN address from the packager host and talk to :4000 there.
- * EXPO_PUBLIC_API_URL (or the in-app override) always wins.
+ * عنوان الخادم.
+ *
+ * التطبيق يتكلم دائما مع الخادم المنشور، سواء في Expo Go أو في نسخة APK،
+ * حتى يكون سلوكه واحدا في الحالتين ولا يحتاج تشغيل خادم محلي.
+ * للتطوير المحلي مرّر EXPO_PUBLIC_API_URL عند تشغيل Expo.
  */
+const FALLBACK_API_URL = 'https://boutique-stores-manager.onrender.com';
+
 function derivedUrl() {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, '');
-
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    Constants.expoGoConfig?.debuggerHost ||
-    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
-    '';
-  const host = hostUri.split(':')[0];
-  if (host && host !== 'localhost' && host !== '127.0.0.1') return `http://${host}:4000`;
-
   const configured = Constants.expoConfig?.extra?.apiUrl;
-  return (configured || 'http://localhost:4000').replace(/\/$/, '');
+  return (configured || FALLBACK_API_URL).replace(/\/$/, '');
 }
 
 let baseUrl = derivedUrl();
@@ -67,7 +62,9 @@ export function bindTokens(provider) {
 
 // مهلة قصوى لأي طلب. بدونها يبقى الزر يدور إلى ما لا نهاية
 // عندما يكون الخادم مطفأ أو الشبكة تبتلع الطلب بصمت.
-const TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT || 15000);
+// خطة Render المجانية تُنيم الخادم بعد فترة خمول، وإيقاظه قد يأخذ حوالي دقيقة،
+// لذلك المهلة سخية عمدا. الشاشة تُظهر رسالة انتظار بعد ثوان قليلة.
+const TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT || 60000);
 
 async function raw(path, { method = 'GET', body, token, signal } = {}) {
   const headers = { Accept: 'application/json' };
