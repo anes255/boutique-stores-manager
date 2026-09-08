@@ -65,10 +65,19 @@ export function bindTokens(provider) {
   tokenProvider = provider;
 }
 
+// مهلة قصوى لأي طلب. بدونها يبقى الزر يدور إلى ما لا نهاية
+// عندما يكون الخادم مطفأ أو الشبكة تبتلع الطلب بصمت.
+const TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT || 15000);
+
 async function raw(path, { method = 'GET', body, token, signal } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // نحترم إشارة الإلغاء القادمة من المتصل أيضا
+  if (signal) signal.addEventListener?.('abort', () => controller.abort());
 
   let response;
   try {
@@ -76,13 +85,18 @@ async function raw(path, { method = 'GET', body, token, signal } = {}) {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
+      signal: controller.signal,
     });
   } catch (err) {
+    const timedOut = controller.signal.aborted;
     throw new ApiError(
-      `Cannot reach the server at ${baseUrl}. Check that it is running and that your phone is on the same Wi-Fi.`,
-      0, 'network'
+      timedOut
+        ? `الخادم لا يستجيب (${baseUrl}). تأكد أنه يعمل وأن هاتفك على نفس شبكة الواي فاي.`
+        : `تعذّر الوصول إلى الخادم (${baseUrl}). تأكد أنه يعمل وأن هاتفك على نفس شبكة الواي فاي.`,
+      0, timedOut ? 'timeout' : 'network'
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   const text = await response.text();
@@ -91,7 +105,7 @@ async function raw(path, { method = 'GET', body, token, signal } = {}) {
 
   if (!response.ok) {
     throw new ApiError(
-      data?.error || `Request failed (${response.status})`,
+      data?.error || `فشل الطلب (${response.status})`,
       response.status,
       data?.code
     );
