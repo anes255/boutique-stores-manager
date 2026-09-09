@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, FlatList, ScrollView, Alert, Platform, KeyboardAvoidingView,
+  View, Text, StyleSheet, Pressable, FlatList, ScrollView, Alert, Platform,
+  KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ export default function Sell() {
   const { storeId } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
 
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState(null);
@@ -224,7 +226,7 @@ export default function Sell() {
 
               {/* كل المحتوى قابل للتمرير، وأزرار التأكيد تبقى ثابتة بالأسفل */}
               <ScrollView
-                style={styles.sheetScroll}
+                style={{ maxHeight: Math.max(180, windowHeight * 0.48) }}
                 contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.md }}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator
@@ -332,12 +334,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.line, ...shadow(3),
   },
   sheetWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: '#33291F55', justifyContent: 'flex-end' },
-  sheetAnchor: { justifyContent: 'flex-end', maxHeight: '92%' },
+  sheetAnchor: { justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8, flexShrink: 1,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8,
   },
-  sheetScroll: { flexShrink: 1 },
   sheetActions: {
     flexDirection: row, gap: 10, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: colors.lineSoft,

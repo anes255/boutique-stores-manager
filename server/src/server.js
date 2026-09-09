@@ -94,6 +94,10 @@ app.use((err, req, res, _next) => {
   if (err && err.code === '23503') {
     return res.status(400).json({ error: 'سجل مرتبط غير موجود', code: 'fk_violation' });
   }
+  // معرّف غير صالح في المسار: خطأ في الطلب لا في الخادم
+  if (err && (err.code === '22P02' || err.code === '22003')) {
+    return res.status(400).json({ error: 'معرّف غير صالح في الطلب', code: 'bad_identifier' });
+  }
   console.error('[error]', err);
   // Never leak internals to the client.
   res.status(500).json({ error: 'حدث خطأ من جهتنا', code: 'server_error' });

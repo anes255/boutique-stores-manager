@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useStoreId } from '../../src/active-store';
+import { useAuth } from '../../src/auth';
+
 import { api } from '../../src/api';
 import { colors, radius, row, spacing, type } from '../../src/theme';
 import {
@@ -18,7 +21,9 @@ function suggestPassword() {
 }
 
 export default function AccountForm() {
-  const { storeId, id, email: emailParam, name: nameParam, active, first } = useLocalSearchParams();
+  const { storeId: paramStoreId, id, email: emailParam, name: nameParam, active, first } = useLocalSearchParams();
+  const { user } = useAuth();
+  const storeId = useStoreId(paramStoreId, user);
   const router = useRouter();
   const editing = !!id;
 

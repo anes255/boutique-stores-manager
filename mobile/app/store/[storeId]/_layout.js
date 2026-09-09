@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Redirect, Tabs, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../../src/auth';
+import { useActiveStore } from '../../../src/active-store';
 import { colors, font, shadow } from '../../../src/theme';
 import { Feather, Loader } from '../../../src/components/ui';
 
@@ -11,6 +12,10 @@ export default function StoreLayout() {
   const { storeId } = useLocalSearchParams();
   const { user, booting } = useAuth();
   const insets = useSafeAreaInsets();
+  const { setActiveStore } = useActiveStore();
+
+  // تُقرأ من النوافذ التي لا يصلها المعامل
+  useEffect(() => { if (storeId) setActiveStore(storeId); }, [storeId, setActiveStore]);
 
   if (booting) return <Loader />;
   if (!user) return <Redirect href="/login" />;

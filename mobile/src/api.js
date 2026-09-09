@@ -110,11 +110,28 @@ async function raw(path, { method = 'GET', body, token, signal } = {}) {
   return data;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * أول طلب بعد فترة خمول قد يفشل بينما الخادم يستيقظ (خطة Render المجانية
+ * ترفض الاتصال أو تقطعه أثناء الإقلاع). نعيد المحاولة مرة واحدة بهدوء بدل
+ * أن نُظهر "تعذّر الوصول إلى الخادم" لمستخدم لم يفعل شيئا خاطئا.
+ */
+async function rawWithWakeRetry(path, options) {
+  try {
+    return await raw(path, options);
+  } catch (err) {
+    if (err.code !== 'network' && err.code !== 'timeout') throw err;
+    await sleep(1200);
+    return raw(path, options);
+  }
+}
+
 /** Authenticated request with a single transparent refresh-and-retry. */
 export async function request(path, options = {}) {
   const token = tokenProvider.get();
   try {
-    return await raw(path, { ...options, token });
+    return await rawWithWakeRetry(path, { ...options, token });
   } catch (err) {
     if (err.status !== 401 || options._retried) throw err;
     const fresh = await tokenProvider.refresh();
@@ -127,7 +144,7 @@ export async function request(path, options = {}) {
 }
 
 export const api = {
-  raw,
+  raw: rawWithWakeRetry,
   get: (path, params) => request(path + toQuery(params)),
   post: (path, body) => request(path, { method: 'POST', body }),
   patch: (path, body) => request(path, { method: 'PATCH', body }),
