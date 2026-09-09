@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import { useSyncActiveStore } from '../../../src/active-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '../../../src/api';
@@ -20,6 +22,8 @@ const FILTERS = [
 
 export default function Products() {
   const { storeId } = useLocalSearchParams();
+  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
+  useSyncActiveStore(storeId);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 

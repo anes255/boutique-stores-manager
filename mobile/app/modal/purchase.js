@@ -24,6 +24,7 @@ export default function Purchase() {
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
   const [currency, setCurrency] = useState(undefined);
+  const [storeName, setStoreName] = useState('');
 
   const [supplier, setSupplier] = useState('');
   const [note, setNote] = useState('');
@@ -45,6 +46,7 @@ export default function Purchase() {
         ]);
         setProducts(p.products || []);
         setCurrency(s.store?.currency);
+        setStoreName(s.store?.name || '');
       } catch (err) {
         setError(err.message);
       } finally {
@@ -139,7 +141,8 @@ export default function Purchase() {
 
   return (
     <>
-      <Header title="تموين" subtitle="البضاعة التي اشتريتها" onBack={() => router.back()} />
+      <Header title="تموين" subtitle={storeName ? `محل ${storeName}` : 'البضاعة التي اشتريتها'}
+        onBack={() => router.back()} />
       <KeyboardScreen>
         <ErrorNote message={error} />
 

@@ -45,6 +45,7 @@ export default function ProductForm() {
   const [categories, setCategories] = useState([]);
   const [movements, setMovements] = useState([]);
   const [currency, setCurrency] = useState(undefined);
+  const [storeName, setStoreName] = useState('');
   const [adjust, setAdjust] = useState('');
 
   const [form, setForm] = useState({
@@ -64,6 +65,7 @@ export default function ProductForm() {
         ]);
         setCategories(cats.categories || []);
         setCurrency(store.store?.currency);
+        setStoreName(store.store?.name || '');
 
         if (editing) {
           const data = await api.get(`/api/products/${id}`);
@@ -165,7 +167,7 @@ export default function ProductForm() {
   return (
     <>
       <Header title={editing ? 'تعديل منتج' : 'منتج جديد'}
-        subtitle={editing ? form.name : 'أضفه إلى رفوفك'} onBack={() => router.back()} />
+        subtitle={storeName ? `محل ${storeName}` : 'أضفه إلى رفوفك'} onBack={() => router.back()} />
       <KeyboardScreen>
         <ErrorNote message={error} />
 

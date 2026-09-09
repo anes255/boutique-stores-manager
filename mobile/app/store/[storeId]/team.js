@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useSyncActiveStore } from '../../../src/active-store';
+
 import { useAuth } from '../../../src/auth';
 import { useData } from '../../../src/hooks';
 import { colors, compact, font, money, periodLabel, prettyDate, row, type } from '../../../src/theme';
@@ -15,6 +17,8 @@ const ROLES = { admin: 'المالك', manager: 'مسؤول المحل', staff: 
 
 export default function StoreTeam() {
   const { storeId } = useLocalSearchParams();
+  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
+  useSyncActiveStore(storeId);
   const router = useRouter();
   const { isAdmin, logout } = useAuth();
   const [error, setError] = React.useState(null);

@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useSyncActiveStore } from '../../../src/active-store';
+
 import { useAuth } from '../../../src/auth';
 import { useData } from '../../../src/hooks';
 import { colors, compact, dayLabel, font, money, prettyDate, radius, row, spacing, type } from '../../../src/theme';
@@ -21,6 +23,8 @@ const PAYMENTS = { cash: 'نقدا', card: 'بطاقة', transfer: 'تحويل',
 
 export default function StoreHome() {
   const { storeId } = useLocalSearchParams();
+  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
+  useSyncActiveStore(storeId);
   const router = useRouter();
   const { user, isAdmin } = useAuth();
   const [days, setDays] = useState(30);

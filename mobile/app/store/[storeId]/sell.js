@@ -4,6 +4,8 @@ import {
   KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import { useSyncActiveStore } from '../../../src/active-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '../../../src/api';
@@ -16,6 +18,8 @@ import {
 
 export default function Sell() {
   const { storeId } = useLocalSearchParams();
+  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
+  useSyncActiveStore(storeId);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();

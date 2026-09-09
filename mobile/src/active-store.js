@@ -58,6 +58,17 @@ export function ActiveStoreProvider({ children }) {
   return <ActiveStoreContext.Provider value={value}>{children}</ActiveStoreContext.Provider>;
 }
 
+/**
+ * تسجّلها شاشات المحل نفسها. الشاشات تستقبل المعامل بشكل موثوق على كل
+ * المنصات، بخلاف ملف التخطيط، فلا يبقى المحل المحفوظ قديما عند الانتقال
+ * من محل إلى آخر - وهو ما كان يحفظ المنتج في المحل الخطأ بصمت.
+ */
+export function useSyncActiveStore(storeId) {
+  useEffect(() => {
+    if (storeId) rememberActiveStore(storeId);
+  }, [storeId]);
+}
+
 export function useActiveStore() {
   return useContext(ActiveStoreContext) || { storeId: currentStoreId, setActiveStore: rememberActiveStore };
 }
