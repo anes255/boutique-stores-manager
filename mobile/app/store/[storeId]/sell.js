@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import {
+  View, Text, StyleSheet, Pressable, FlatList, ScrollView, Alert, Platform, KeyboardAvoidingView,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -212,76 +214,84 @@ export default function Sell() {
       {checkout ? (
         <View style={styles.sheetWrap}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setCheckout(false)} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 18 }]}>
-            <View style={styles.grabber} />
-            <Text style={type.title}>السلة</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.sheetAnchor}
+          >
+            <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]}>
+              <View style={styles.grabber} />
+              <Text style={[type.title, { marginBottom: 4 }]}>السلة</Text>
 
-            <View style={{ maxHeight: 240 }}>
-              <FlatList
-                data={cart}
-                keyExtractor={(l) => l.product_id}
-                showsVerticalScrollIndicator={false}
-                renderItem={({ item: l }) => (
-                  <View style={styles.cartRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={type.bodyStrong} numberOfLines={1}>{l.name}</Text>
-                      <Text style={type.tiny}>
-                        {money(l.unit_price, currency)} · {[l.size, l.color].filter(Boolean).join(' ')}
+              {/* كل المحتوى قابل للتمرير، وأزرار التأكيد تبقى ثابتة بالأسفل */}
+              <ScrollView
+                style={styles.sheetScroll}
+                contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.md }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator
+              >
+                <View>
+                  {cart.map((l) => (
+                    <View key={l.product_id} style={styles.cartRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={type.bodyStrong} numberOfLines={1}>{l.name}</Text>
+                        <Text style={type.tiny}>
+                          {money(l.unit_price, currency)} · {[l.size, l.color].filter(Boolean).join(' ')}
+                        </Text>
+                      </View>
+                      <View style={styles.stepper}>
+                        <Pressable onPress={() => changeQty(l.product_id, -1)} style={styles.stepBtn} hitSlop={6}>
+                          <Feather name="minus" size={15} color={colors.ink} />
+                        </Pressable>
+                        <Text style={[type.bodyStrong, { minWidth: 22, textAlign: 'center' }]}>{l.qty}</Text>
+                        <Pressable onPress={() => changeQty(l.product_id, 1)} style={styles.stepBtn} hitSlop={6}>
+                          <Feather name="plus" size={15} color={colors.ink} />
+                        </Pressable>
+                      </View>
+                      <Text style={[type.bodyStrong, { width: 82, textAlign: 'left' }]} numberOfLines={1}>
+                        {money(l.qty * l.unit_price, currency, { compact: true })}
                       </Text>
                     </View>
-                    <View style={styles.stepper}>
-                      <Pressable onPress={() => changeQty(l.product_id, -1)} style={styles.stepBtn} hitSlop={6}>
-                        <Feather name="minus" size={15} color={colors.ink} />
-                      </Pressable>
-                      <Text style={[type.bodyStrong, { minWidth: 22, textAlign: 'center' }]}>{l.qty}</Text>
-                      <Pressable onPress={() => changeQty(l.product_id, 1)} style={styles.stepBtn} hitSlop={6}>
-                        <Feather name="plus" size={15} color={colors.ink} />
-                      </Pressable>
-                    </View>
-                    <Text style={[type.bodyStrong, { width: 82, textAlign: 'left' }]} numberOfLines={1}>
-                      {money(l.qty * l.unit_price, currency, { compact: true })}
-                    </Text>
-                  </View>
-                )}
-              />
-            </View>
+                  ))}
+                </View>
 
-            <View style={{ gap: 10 }}>
-              <Field label="الزبون (اختياري)" value={customer} onChangeText={setCustomer}
-                placeholder="الاسم أو رقم الهاتف" />
-              <Field label="التخفيض" value={discount} onChangeText={setDiscount}
-                placeholder="0" keyboardType="numeric" />
-              <View style={{ gap: 6 }}>
-                <Text style={[type.label, { color: colors.inkSoft }]}>طريقة الدفع</Text>
-                <Chips
-                  options={[
-                    { label: 'نقدا', value: 'cash' },
-                    { label: 'بطاقة', value: 'card' },
-                    { label: 'تحويل', value: 'transfer' },
-                    { label: 'أخرى', value: 'other' },
-                  ]}
-                  value={method}
-                  onChange={setMethod}
-                />
+                <View style={{ gap: 10 }}>
+                  <Field label="الزبون (اختياري)" value={customer} onChangeText={setCustomer}
+                    placeholder="الاسم أو رقم الهاتف" />
+                  <Field label="التخفيض" value={discount} onChangeText={setDiscount}
+                    placeholder="0" keyboardType="numeric" />
+                  <View style={{ gap: 6 }}>
+                    <Text style={[type.label, { color: colors.inkSoft }]}>طريقة الدفع</Text>
+                    <Chips
+                      options={[
+                        { label: 'نقدا', value: 'cash' },
+                        { label: 'بطاقة', value: 'card' },
+                        { label: 'تحويل', value: 'transfer' },
+                        { label: 'أخرى', value: 'other' },
+                      ]}
+                      value={method}
+                      onChange={setMethod}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.totalsBox}>
+                  <Row label="المجموع" value={money(totals.subtotal, currency)} />
+                  {totals.disc > 0 ? <Row label="التخفيض" value={`− ${money(totals.disc, currency)}`} /> : null}
+                  <Row label="الربح المتوقع" value={money(totals.profit, currency)} muted />
+                  <View style={styles.totalLine} />
+                  <Row label="المبلغ المطلوب" value={money(totals.total, currency)} big />
+                </View>
+
+                <ErrorNote message={error} />
+              </ScrollView>
+
+              <View style={styles.sheetActions}>
+                <Button title="إفراغ" variant="ghost" style={{ flex: 1 }}
+                  onPress={() => { setCart([]); setCheckout(false); }} />
+                <Button title="تأكيد البيع" icon="check" loading={saving} style={{ flex: 2 }} onPress={submit} />
               </View>
             </View>
-
-            <View style={styles.totalsBox}>
-              <Row label="المجموع" value={money(totals.subtotal, currency)} />
-              {totals.disc > 0 ? <Row label="التخفيض" value={`− ${money(totals.disc, currency)}`} /> : null}
-              <Row label="الربح المتوقع" value={money(totals.profit, currency)} muted />
-              <View style={styles.totalLine} />
-              <Row label="المبلغ المطلوب" value={money(totals.total, currency)} big />
-            </View>
-
-            <ErrorNote message={error} />
-
-            <View style={{ flexDirection: row, gap: 10 }}>
-              <Button title="إفراغ" variant="ghost" style={{ flex: 1 }}
-                onPress={() => { setCart([]); setCheckout(false); }} />
-              <Button title="تأكيد البيع" icon="check" loading={saving} style={{ flex: 2 }} onPress={submit} />
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       ) : null}
     </KeyboardAvoidingView>
@@ -322,9 +332,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.line, ...shadow(3),
   },
   sheetWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: '#33291F55', justifyContent: 'flex-end' },
+  sheetAnchor: { justifyContent: 'flex-end', maxHeight: '92%' },
   sheet: {
     backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: spacing.lg, gap: spacing.md, maxHeight: '92%',
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8, flexShrink: 1,
+  },
+  sheetScroll: { flexShrink: 1 },
+  sheetActions: {
+    flexDirection: row, gap: 10, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: colors.lineSoft,
   },
   grabber: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   cartRow: {

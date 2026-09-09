@@ -32,7 +32,11 @@
     "backgroundColor": "#FFF8F1",
     "newArchEnabled": true,
     "extra": {
-      "apiUrl": "https://boutique-stores-manager.onrender.com"
+      "apiUrl": "https://boutique-stores-manager.onrender.com",
+      "router": {},
+      "eas": {
+        "projectId": "54cc6932-848d-4e4b-87a4-6dc7c6dd831b"
+      }
     }
   }
 }
