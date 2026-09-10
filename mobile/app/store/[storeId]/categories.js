@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../src/store-route';
 
 import { api } from '../../../src/api';
 import { colors, row, type } from '../../../src/theme';
@@ -12,7 +13,8 @@ import {
 const SUGGESTIONS = ['فساتين', 'قمصان وبلوزات', 'سراويل', 'معاطف', 'تريكو', 'أحذية', 'حقائب', 'إكسسوارات', 'أطفال'];
 
 export default function Categories() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../src/store-route';
 
 import { api } from '../../../src/api';
 import { colors, money, prettyDate, radius, row, spacing, type } from '../../../src/theme';
@@ -29,7 +30,9 @@ const SEASONS = [
 ];
 
 export default function ProductForm() {
-  const { id, storeId } = useLocalSearchParams();
+  const { id } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const editing = !!id;
 

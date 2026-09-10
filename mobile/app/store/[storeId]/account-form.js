@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../src/store-route';
 
 import { api } from '../../../src/api';
 import { colors, radius, row, spacing, type } from '../../../src/theme';
@@ -18,7 +19,9 @@ function suggestPassword() {
 }
 
 export default function AccountForm() {
-  const { storeId, id, email: emailParam, name: nameParam, active, first } = useLocalSearchParams();
+  const { id, email: emailParam, name: nameParam, active, first } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const editing = !!id;
 

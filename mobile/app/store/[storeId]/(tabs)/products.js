@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../../src/store-route';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,7 +21,8 @@ const FILTERS = [
 ];
 
 export default function Products() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 

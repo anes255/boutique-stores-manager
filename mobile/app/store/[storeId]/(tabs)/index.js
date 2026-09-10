@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../../src/store-route';
 
 import { useAuth } from '../../../../src/auth';
 import { useData } from '../../../../src/hooks';
@@ -20,7 +21,8 @@ const RANGES = [
 const PAYMENTS = { cash: 'نقدا', card: 'بطاقة', transfer: 'تحويل', other: 'أخرى' };
 
 export default function StoreHome() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const { user, isAdmin } = useAuth();
   const [days, setDays] = useState(30);

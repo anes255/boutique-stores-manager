@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, Pressable, FlatList, ScrollView, Alert, Platform, Modal,
   KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../../src/store-route';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,7 +17,8 @@ import {
 } from '../../../../src/components/ui';
 
 export default function Sell() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();

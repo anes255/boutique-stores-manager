@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../src/store-route';
 
 import { api } from '../../../src/api';
 import { colors, type } from '../../../src/theme';
@@ -23,7 +24,8 @@ const CATEGORIES = [
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function ExpenseForm() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
 
   const [category, setCategory] = useState('supplies');

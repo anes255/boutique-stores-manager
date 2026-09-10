@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../src/store-route';
 
 import { api } from '../../../src/api';
 import { colors, money, radius, row, spacing, type } from '../../../src/theme';
@@ -10,7 +11,8 @@ import {
 } from '../../../src/components/ui';
 
 export default function Purchase() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);

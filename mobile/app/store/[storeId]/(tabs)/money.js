@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../../src/store-route';
 
 import { api } from '../../../../src/api';
 import { useData } from '../../../../src/hooks';
@@ -23,7 +24,8 @@ export const EXPENSE_LABELS = {
 };
 
 export default function Money() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const [tab, setTab] = useState('sales');
   const [error, setError] = useState(null);

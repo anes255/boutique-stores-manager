@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useStoreRouteId } from '../../../../src/store-route';
 
 import { useAuth } from '../../../../src/auth';
 import { useData } from '../../../../src/hooks';
@@ -14,7 +15,8 @@ import { RankBars } from '../../../../src/charts';
 const ROLES = { admin: 'المالك', manager: 'مسؤول المحل', staff: 'بائع' };
 
 export default function StoreTeam() {
-  const { storeId } = useLocalSearchParams();
+  // المحل يأتي من تخطيط المحل، لا من معاملات هذه الشاشة
+  const storeId = useStoreRouteId();
   const router = useRouter();
   const { isAdmin, logout } = useAuth();
   const [error, setError] = React.useState(null);
