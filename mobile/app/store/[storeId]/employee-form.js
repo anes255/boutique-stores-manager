@@ -2,23 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { View, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useStoreId } from '../../src/active-store';
-import { useAuth } from '../../src/auth';
-
-import { api } from '../../src/api';
-import { colors, money, periodLabel, row, shortDate } from '../../src/theme';
+import { api } from '../../../src/api';
+import { colors, money, periodLabel, row, shortDate } from '../../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
   SectionTitle, Switch, ListRow,
-} from '../../src/components/ui';
+} from '../../../src/components/ui';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function EmployeeForm() {
-  const { id, storeId: paramStoreId } = useLocalSearchParams();
-  const { user } = useAuth();
-  // المعامل قد لا يصل على الهاتف، فنرجع إلى المحل المفتوح
-  const storeId = useStoreId(paramStoreId, user);
+  const { id, storeId } = useLocalSearchParams();
   const router = useRouter();
   const editing = !!id;
 

@@ -78,14 +78,14 @@ export default function AdminTeam() {
               text="أضف الأشخاص الذين يعملون في محلاتك لمتابعة رواتبهم وأدائهم."
               actionLabel={stores.length ? 'إضافة موظف' : undefined}
               onAction={stores.length ? () => router.push({
-                pathname: '/modal/employee-form', params: { storeId: storeId || stores[0].id },
+                pathname: `/store/${storeId || stores[0].id}/employee-form`,
               }) : undefined}
             />
           </Card>
         ) : null}
 
         {employees.map((e) => (
-          <Card key={e.id} onPress={() => router.push({ pathname: '/modal/employee-form', params: { id: e.id, storeId: e.store_id } })}>
+          <Card key={e.id} onPress={() => router.push({ pathname: `/store/${e.store_id}/employee-form`, params: { id: e.id } })}>
             <View style={styles.row}>
               <View style={[styles.avatar, { backgroundColor: e.is_active ? colors.sageSoft : colors.lineSoft }]}>
                 <Text style={[styles.avatarText, { color: e.is_active ? colors.sage : colors.inkMuted }]}>
@@ -133,8 +133,7 @@ export default function AdminTeam() {
       </Screen>
       {stores.length ? (
         <Fab icon="user-plus" label="إضافة" onPress={() => router.push({
-          pathname: '/modal/employee-form',
-          params: { storeId: storeId || stores[0].id },
+          pathname: `/store/${storeId || stores[0].id}/employee-form`,
         })} />
       ) : null}
     </View>

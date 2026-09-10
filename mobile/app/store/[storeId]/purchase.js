@@ -2,21 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useStoreId } from '../../src/active-store';
-import { useAuth } from '../../src/auth';
-
-import { api } from '../../src/api';
-import { colors, money, radius, row, spacing, type } from '../../src/theme';
+import { api } from '../../../src/api';
+import { colors, money, radius, row, spacing, type } from '../../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
   SectionTitle, EmptyState, Feather, Badge, tap,
-} from '../../src/components/ui';
+} from '../../../src/components/ui';
 
 export default function Purchase() {
-  const { storeId: paramStoreId } = useLocalSearchParams();
-  const { user } = useAuth();
-  // المعامل قد لا يصل على الهاتف، فنرجع إلى المحل المفتوح
-  const storeId = useStoreId(paramStoreId, user);
+  const { storeId } = useLocalSearchParams();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);

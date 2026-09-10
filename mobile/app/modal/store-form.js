@@ -73,7 +73,7 @@ export default function StoreForm() {
         router.back();
       } else {
         const data = await api.post('/api/stores', payload);
-        router.replace({ pathname: '/modal/account-form', params: { storeId: data.store.id, first: '1' } });
+        router.replace({ pathname: `/store/${data.store.id}/account-form`, params: { first: '1' } });
       }
     } catch (err) {
       setError(err.message);
@@ -150,7 +150,7 @@ export default function StoreForm() {
         {editing ? (
           <Card>
             <SectionTitle icon="key" action="إضافة حساب"
-              onAction={() => router.push({ pathname: '/modal/account-form', params: { storeId: id } })}>
+              onAction={() => router.push({ pathname: `/store/${id}/account-form` })}>
               حسابات الدخول لهذا المحل
             </SectionTitle>
             {accounts.length === 0 ? (
@@ -169,8 +169,8 @@ export default function StoreForm() {
                   tone={a.is_active ? colors.good : colors.bad}
                   soft={a.is_active ? colors.goodSoft : colors.badSoft} />}
                 onPress={() => router.push({
-                  pathname: '/modal/account-form',
-                  params: { storeId: id, id: a.id, email: a.email, name: a.full_name, active: String(a.is_active) },
+                  pathname: `/store/${id}/account-form`,
+                  params: { id: a.id, email: a.email, name: a.full_name, active: String(a.is_active) },
                 })}
                 last={i === arr.length - 1}
               />

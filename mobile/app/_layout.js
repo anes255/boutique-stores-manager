@@ -11,7 +11,6 @@ import {
 } from '@expo-google-fonts/tajawal';
 
 import { AuthProvider } from '../src/auth';
-import { ActiveStoreProvider } from '../src/active-store';
 import { colors } from '../src/theme';
 
 // التطبيق عربي بالكامل. الاتجاه مكتوب داخل الأنماط نفسها،
@@ -39,7 +38,6 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <ActiveStoreProvider>
         <StatusBar style="dark" backgroundColor={colors.bg} />
         <Stack
           screenOptions={{
@@ -54,7 +52,6 @@ export default function RootLayout() {
           <Stack.Screen name="store/[storeId]" />
           <Stack.Screen name="modal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         </Stack>
-        </ActiveStoreProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

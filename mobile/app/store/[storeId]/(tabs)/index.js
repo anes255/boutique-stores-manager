@@ -2,16 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useSyncActiveStore } from '../../../src/active-store';
-
-import { useAuth } from '../../../src/auth';
-import { useData } from '../../../src/hooks';
-import { colors, compact, dayLabel, font, money, prettyDate, radius, row, spacing, type } from '../../../src/theme';
+import { useAuth } from '../../../../src/auth';
+import { useData } from '../../../../src/hooks';
+import { colors, compact, dayLabel, font, money, prettyDate, radius, row, spacing, type } from '../../../../src/theme';
 import {
   Screen, Header, Card, SectionTitle, StatTile, Button, Segmented, Loader,
   ErrorNote, EmptyState, ListRow, Badge, Feather,
-} from '../../../src/components/ui';
-import { TrendChart, DonutChart, RankBars, Gauge } from '../../../src/charts';
+} from '../../../../src/components/ui';
+import { TrendChart, DonutChart, RankBars, Gauge } from '../../../../src/charts';
 
 const RANGES = [
   { label: '7 أيام', value: 7 },
@@ -23,8 +21,6 @@ const PAYMENTS = { cash: 'نقدا', card: 'بطاقة', transfer: 'تحويل',
 
 export default function StoreHome() {
   const { storeId } = useLocalSearchParams();
-  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
-  useSyncActiveStore(storeId);
   const router = useRouter();
   const { user, isAdmin } = useAuth();
   const [days, setDays] = useState(30);
@@ -135,11 +131,11 @@ export default function StoreHome() {
 
         <View style={styles.quickRow}>
           <Quick icon="plus-square" label="منتج جديد" tone={colors.sage} soft={colors.sageSoft}
-            onPress={() => router.push({ pathname: '/modal/product-form', params: { storeId } })} />
+            onPress={() => router.push({ pathname: `/store/${storeId}/product-form` })} />
           <Quick icon="truck" label="تموين" tone={colors.sky} soft={colors.skySoft}
-            onPress={() => router.push({ pathname: '/modal/purchase', params: { storeId } })} />
+            onPress={() => router.push({ pathname: `/store/${storeId}/purchase` })} />
           <Quick icon="credit-card" label="مصروف" tone={colors.rose} soft={colors.roseSoft}
-            onPress={() => router.push({ pathname: '/modal/expense-form', params: { storeId } })} />
+            onPress={() => router.push({ pathname: `/store/${storeId}/expense-form` })} />
         </View>
 
         <Card>
@@ -193,7 +189,7 @@ export default function StoreHome() {
         {(data.low?.products || []).length > 0 ? (
           <Card>
             <SectionTitle icon="alert-triangle" action="تموين"
-              onAction={() => router.push({ pathname: '/modal/purchase', params: { storeId } })}>
+              onAction={() => router.push({ pathname: `/store/${storeId}/purchase` })}>
               على وشك النفاد
             </SectionTitle>
             {(data.low.products || []).slice(0, 8).map((p, i, arr) => (
@@ -207,7 +203,7 @@ export default function StoreHome() {
                 right={<Badge text={`بقي ${Number(p.stock)}`}
                   tone={Number(p.stock) <= 0 ? colors.bad : colors.warn}
                   soft={Number(p.stock) <= 0 ? colors.badSoft : colors.warnSoft} />}
-                onPress={() => router.push({ pathname: '/modal/product-form', params: { id: p.id, storeId } })}
+                onPress={() => router.push({ pathname: `/store/${storeId}/product-form`, params: { id: p.id } })}
                 last={i === Math.min(arr.length, 8) - 1}
               />
             ))}

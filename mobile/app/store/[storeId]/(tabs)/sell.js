@@ -5,21 +5,18 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useSyncActiveStore } from '../../../src/active-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api } from '../../../src/api';
-import { useData } from '../../../src/hooks';
-import { colors, font, money, radius, row, shadow, spacing, type } from '../../../src/theme';
+import { api } from '../../../../src/api';
+import { useData } from '../../../../src/hooks';
+import { colors, font, money, radius, row, shadow, spacing, type } from '../../../../src/theme';
 import {
   Header, Button, Field, Loader, ErrorNote, EmptyState,
   Badge, Chips, Feather, tap,
-} from '../../../src/components/ui';
+} from '../../../../src/components/ui';
 
 export default function Sell() {
   const { storeId } = useLocalSearchParams();
-  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
-  useSyncActiveStore(storeId);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -170,7 +167,7 @@ export default function Sell() {
           <EmptyState icon="search" title="لا يوجد ما يطابق البحث"
             text="جرّب كلمة أخرى، أو أضف المنتج أولا."
             actionLabel="إضافة منتج"
-            onAction={() => router.push({ pathname: '/modal/product-form', params: { storeId } })} />
+            onAction={() => router.push({ pathname: `/store/${storeId}/product-form` })} />
         }
         renderItem={({ item }) => {
           const inCart = cart.find((l) => l.product_id === item.id);

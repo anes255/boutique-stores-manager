@@ -2,15 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useStoreId } from '../../src/active-store';
-import { useAuth } from '../../src/auth';
-
-import { api } from '../../src/api';
-import { colors, radius, row, spacing, type } from '../../src/theme';
+import { api } from '../../../src/api';
+import { colors, radius, row, spacing, type } from '../../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, ErrorNote,
   SectionTitle, Chips, Feather, Badge,
-} from '../../src/components/ui';
+} from '../../../src/components/ui';
 
 /** كلمة سر سهلة القراءة حتى لا يضطر المالك لاختراع واحدة. */
 function suggestPassword() {
@@ -21,9 +18,7 @@ function suggestPassword() {
 }
 
 export default function AccountForm() {
-  const { storeId: paramStoreId, id, email: emailParam, name: nameParam, active, first } = useLocalSearchParams();
-  const { user } = useAuth();
-  const storeId = useStoreId(paramStoreId, user);
+  const { storeId, id, email: emailParam, name: nameParam, active, first } = useLocalSearchParams();
   const router = useRouter();
   const editing = !!id;
 

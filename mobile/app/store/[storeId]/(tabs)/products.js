@@ -2,16 +2,15 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useSyncActiveStore } from '../../../src/active-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api } from '../../../src/api';
-import { useData } from '../../../src/hooks';
-import { colors, compact, font, money, radius, row, shadow, spacing, type } from '../../../src/theme';
+import { api } from '../../../../src/api';
+import { useData } from '../../../../src/hooks';
+import { colors, compact, font, money, radius, row, shadow, spacing, type } from '../../../../src/theme';
 import {
   Header, Card, Field, Loader, ErrorNote, EmptyState,
   Badge, Chips, Feather, Fab, StatTile, tap,
-} from '../../../src/components/ui';
+} from '../../../../src/components/ui';
 
 const FILTERS = [
   { label: 'الكل', value: 'all' },
@@ -22,8 +21,6 @@ const FILTERS = [
 
 export default function Products() {
   const { storeId } = useLocalSearchParams();
-  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
-  useSyncActiveStore(storeId);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -86,7 +83,7 @@ export default function Products() {
       <Header title="المنتجات" subtitle={data.store?.store?.name}
         right={
           <Pressable style={styles.iconBtn}
-            onPress={() => router.push({ pathname: '/modal/categories', params: { storeId } })}>
+            onPress={() => router.push({ pathname: `/store/${storeId}/categories` })}>
             <Feather name="folder" size={18} color={colors.ink} />
           </Pressable>
         }
@@ -127,7 +124,7 @@ export default function Products() {
                 ? 'جرّب كلمة أخرى أو غيّر التصفية.'
                 : 'أضف أول منتج — الاسم، المقاس، اللون، سعر الشراء وسعر البيع.'}
               actionLabel="إضافة منتج"
-              onAction={() => router.push({ pathname: '/modal/product-form', params: { storeId } })}
+              onAction={() => router.push({ pathname: `/store/${storeId}/product-form` })}
             />
           </Card>
         }
@@ -138,7 +135,7 @@ export default function Products() {
             ? ((Number(p.sell_price) - Number(p.cost_price)) / Number(p.sell_price)) * 100 : 0;
           return (
             <Pressable
-              onPress={() => router.push({ pathname: '/modal/product-form', params: { id: p.id, storeId } })}
+              onPress={() => router.push({ pathname: `/store/${storeId}/product-form`, params: { id: p.id } })}
               style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
             >
               <View style={{ flexDirection: row, gap: 11, alignItems: 'flex-start' }}>
@@ -182,7 +179,7 @@ export default function Products() {
                   <Text style={styles.actionText}>استلمت</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => router.push({ pathname: '/modal/product-form', params: { id: p.id, storeId } })}
+                  onPress={() => router.push({ pathname: `/store/${storeId}/product-form`, params: { id: p.id } })}
                   style={styles.actionBtn}>
                   <Feather name="edit-2" size={14} color={colors.ink} />
                   <Text style={styles.actionText}>تعديل</Text>
@@ -194,7 +191,7 @@ export default function Products() {
       />
 
       <Fab icon="plus" label="منتج جديد"
-        onPress={() => router.push({ pathname: '/modal/product-form', params: { storeId } })} />
+        onPress={() => router.push({ pathname: `/store/${storeId}/product-form` })} />
     </View>
   );
 }

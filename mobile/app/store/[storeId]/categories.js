@@ -2,23 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useStoreId } from '../../src/active-store';
-import { useAuth } from '../../src/auth';
-
-import { api } from '../../src/api';
-import { colors, row, type } from '../../src/theme';
+import { api } from '../../../src/api';
+import { colors, row, type } from '../../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
   SectionTitle, ListRow, EmptyState,
-} from '../../src/components/ui';
+} from '../../../src/components/ui';
 
 const SUGGESTIONS = ['فساتين', 'قمصان وبلوزات', 'سراويل', 'معاطف', 'تريكو', 'أحذية', 'حقائب', 'إكسسوارات', 'أطفال'];
 
 export default function Categories() {
-  const { storeId: paramStoreId } = useLocalSearchParams();
-  const { user } = useAuth();
-  // المعامل قد لا يصل على الهاتف، فنرجع إلى المحل المفتوح
-  const storeId = useStoreId(paramStoreId, user);
+  const { storeId } = useLocalSearchParams();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);

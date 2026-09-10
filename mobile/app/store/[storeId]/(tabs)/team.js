@@ -2,23 +2,19 @@ import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useSyncActiveStore } from '../../../src/active-store';
-
-import { useAuth } from '../../../src/auth';
-import { useData } from '../../../src/hooks';
-import { colors, compact, font, money, periodLabel, prettyDate, row, type } from '../../../src/theme';
+import { useAuth } from '../../../../src/auth';
+import { useData } from '../../../../src/hooks';
+import { colors, compact, font, money, periodLabel, prettyDate, row, type } from '../../../../src/theme';
 import {
   Screen, Header, Card, SectionTitle, StatTile, Loader, ErrorNote,
   EmptyState, ListRow, Badge, Button, Fab,
-} from '../../../src/components/ui';
-import { RankBars } from '../../../src/charts';
+} from '../../../../src/components/ui';
+import { RankBars } from '../../../../src/charts';
 
 const ROLES = { admin: 'المالك', manager: 'مسؤول المحل', staff: 'بائع' };
 
 export default function StoreTeam() {
   const { storeId } = useLocalSearchParams();
-  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
-  useSyncActiveStore(storeId);
   const router = useRouter();
   const { isAdmin, logout } = useAuth();
   const [error, setError] = React.useState(null);
@@ -69,7 +65,7 @@ export default function StoreTeam() {
             <EmptyState icon="user-plus" title="لم تضف أحدا بعد"
               text="أضف الأشخاص الذين يعملون هنا لمتابعة رواتبهم."
               actionLabel="إضافة موظف"
-              onAction={() => router.push({ pathname: '/modal/employee-form', params: { storeId } })} />
+              onAction={() => router.push({ pathname: `/store/${storeId}/employee-form` })} />
           </Card>
         ) : null}
 
@@ -106,7 +102,7 @@ export default function StoreTeam() {
               <Button title="دفع الراتب" icon="dollar-sign" small variant="soft" style={{ flex: 1 }}
                 onPress={() => router.push({ pathname: '/modal/salary', params: { id: e.id, name: e.full_name } })} />
               <Button title="تعديل" icon="edit-2" small variant="white" style={{ flex: 1 }}
-                onPress={() => router.push({ pathname: '/modal/employee-form', params: { id: e.id, storeId } })} />
+                onPress={() => router.push({ pathname: `/store/${storeId}/employee-form`, params: { id: e.id } })} />
             </View>
           </Card>
         ))}
@@ -114,7 +110,7 @@ export default function StoreTeam() {
         {isAdmin ? (
           <>
             <SectionTitle icon="key" action="إضافة حساب"
-              onAction={() => router.push({ pathname: '/modal/account-form', params: { storeId } })}>
+              onAction={() => router.push({ pathname: `/store/${storeId}/account-form` })}>
               حسابات الدخول
             </SectionTitle>
             <Card>
@@ -122,7 +118,7 @@ export default function StoreTeam() {
                 <EmptyState icon="key" title="لا يوجد حساب دخول لهذا المحل"
                   text="أنشئ حسابا حتى يتمكن مسؤول المحل من الدخول ورؤية هذا المحل فقط."
                   actionLabel="إنشاء حساب"
-                  onAction={() => router.push({ pathname: '/modal/account-form', params: { storeId } })} />
+                  onAction={() => router.push({ pathname: `/store/${storeId}/account-form` })} />
               ) : logins.map((a, i, arr) => (
                 <ListRow
                   key={a.id}
@@ -138,8 +134,8 @@ export default function StoreTeam() {
                       soft={a.is_active ? colors.goodSoft : colors.badSoft} />
                   }
                   onPress={() => router.push({
-                    pathname: '/modal/account-form',
-                    params: { storeId, id: a.id, email: a.email, name: a.full_name, active: String(a.is_active) },
+                    pathname: `/store/${storeId}/account-form`,
+                    params: { id: a.id, email: a.email, name: a.full_name, active: String(a.is_active) },
                   })}
                   last={i === arr.length - 1}
                 />
@@ -156,7 +152,7 @@ export default function StoreTeam() {
       </Screen>
 
       <Fab icon="user-plus" label="إضافة"
-        onPress={() => router.push({ pathname: '/modal/employee-form', params: { storeId } })} />
+        onPress={() => router.push({ pathname: `/store/${storeId}/employee-form` })} />
     </View>
   );
 }

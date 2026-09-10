@@ -2,16 +2,14 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useSyncActiveStore } from '../../../src/active-store';
-
-import { api } from '../../../src/api';
-import { useData } from '../../../src/hooks';
-import { colors, compact, money, prettyDate, row, shortDate, type } from '../../../src/theme';
+import { api } from '../../../../src/api';
+import { useData } from '../../../../src/hooks';
+import { colors, compact, money, prettyDate, row, shortDate, type } from '../../../../src/theme';
 import {
   Screen, Header, Card, SectionTitle, Segmented, StatTile, Loader,
   ErrorNote, EmptyState, ListRow, Button,
-} from '../../../src/components/ui';
-import { DonutChart } from '../../../src/charts';
+} from '../../../../src/components/ui';
+import { DonutChart } from '../../../../src/charts';
 
 const TABS = [
   { label: 'المبيعات', value: 'sales' },
@@ -26,8 +24,6 @@ export const EXPENSE_LABELS = {
 
 export default function Money() {
   const { storeId } = useLocalSearchParams();
-  // يبقي "المحل المفتوح" مطابقا لما تراه، فلا تُحفظ الإضافات في محل آخر
-  useSyncActiveStore(storeId);
   const router = useRouter();
   const [tab, setTab] = useState('sales');
   const [error, setError] = useState(null);
@@ -108,9 +104,9 @@ export default function Money() {
 
         <View style={{ flexDirection: row, gap: 10 }}>
           <Button title="تموين" icon="truck" variant="white" small style={{ flex: 1 }}
-            onPress={() => router.push({ pathname: '/modal/purchase', params: { storeId } })} />
+            onPress={() => router.push({ pathname: `/store/${storeId}/purchase` })} />
           <Button title="إضافة مصروف" icon="plus" variant="soft" small style={{ flex: 1 }}
-            onPress={() => router.push({ pathname: '/modal/expense-form', params: { storeId } })} />
+            onPress={() => router.push({ pathname: `/store/${storeId}/expense-form` })} />
         </View>
 
         {tab === 'sales' ? (
@@ -143,7 +139,7 @@ export default function Money() {
               <EmptyState icon="truck" title="لا يوجد تموين بعد"
                 text="سجّل ما تشتريه من الموردين حتى تبقى تكاليفك وأرباحك دقيقة."
                 actionLabel="تسجيل تموين"
-                onAction={() => router.push({ pathname: '/modal/purchase', params: { storeId } })} />
+                onAction={() => router.push({ pathname: `/store/${storeId}/purchase` })} />
             ) : (data.purchases.purchases || []).map((p, i, arr) => (
               <ListRow
                 key={p.id}
@@ -166,7 +162,7 @@ export default function Money() {
               <EmptyState icon="credit-card" title="لا شيء مسجل"
                 text="الإيجار، الكهرباء، الأكياس، القطع التالفة — سجّلها هنا لترى الربح الحقيقي."
                 actionLabel="إضافة مصروف"
-                onAction={() => router.push({ pathname: '/modal/expense-form', params: { storeId } })} />
+                onAction={() => router.push({ pathname: `/store/${storeId}/expense-form` })} />
             ) : (data.expenses.expenses || []).map((e, i, arr) => (
               <ListRow
                 key={e.id}

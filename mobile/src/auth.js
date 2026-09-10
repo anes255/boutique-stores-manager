@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { storage } from './storage';
 import { api, bindTokens, loadBaseUrl } from './api';
-import { restoreActiveStore } from './active-store';
 
 const ACCESS_KEY = 'access_token';
 const REFRESH_KEY = 'refresh_token';
@@ -67,7 +66,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       await loadBaseUrl();
-      await restoreActiveStore();
       const access = await storage.get(ACCESS_KEY);
       const refresh = await storage.get(REFRESH_KEY);
       accessRef.current = access;

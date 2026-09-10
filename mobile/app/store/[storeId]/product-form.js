@@ -2,15 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useStoreId } from '../../src/active-store';
-import { useAuth } from '../../src/auth';
-
-import { api } from '../../src/api';
-import { colors, money, prettyDate, radius, row, spacing, type } from '../../src/theme';
+import { api } from '../../../src/api';
+import { colors, money, prettyDate, radius, row, spacing, type } from '../../../src/theme';
 import {
   KeyboardScreen, Header, Card, Button, Field, Loader, ErrorNote,
   SectionTitle, Chips, Switch, ListRow, Badge,
-} from '../../src/components/ui';
+} from '../../../src/components/ui';
 
 const UNITS = [
   { label: 'قطعة', value: 'piece' },
@@ -32,10 +29,7 @@ const SEASONS = [
 ];
 
 export default function ProductForm() {
-  const { id, storeId: paramStoreId } = useLocalSearchParams();
-  const { user } = useAuth();
-  // المعامل قد لا يصل على الهاتف، فنرجع إلى المحل المفتوح
-  const storeId = useStoreId(paramStoreId, user);
+  const { id, storeId } = useLocalSearchParams();
   const router = useRouter();
   const editing = !!id;
 
