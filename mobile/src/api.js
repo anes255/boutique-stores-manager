@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { storage } from './storage';
+import { notifyDataChanged } from './events';
 
 const OVERRIDE_KEY = 'api_url_override';
 
@@ -67,7 +68,8 @@ export function bindTokens(provider) {
 const TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT || 60000);
 
 async function raw(path, { method = 'GET', body, token, signal } = {}) {
-  const headers = { Accept: 'application/json' };
+  // بدون هذا قد يعيد الهاتف نسخة قديمة من القائمة بدل طلبها من الخادم
+  const headers = { Accept: 'application/json', 'Cache-Control': 'no-cache', Pragma: 'no-cache' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -127,8 +129,17 @@ async function rawWithWakeRetry(path, options) {
   }
 }
 
+const isWrite = (options) => (options.method || 'GET').toUpperCase() !== 'GET';
+
 /** Authenticated request with a single transparent refresh-and-retry. */
 export async function request(path, options = {}) {
+  const result = await requestOnce(path, options);
+  // كل حفظ ناجح يطلب من القوائم المفتوحة إعادة التحميل
+  if (isWrite(options)) notifyDataChanged();
+  return result;
+}
+
+async function requestOnce(path, options = {}) {
   const token = tokenProvider.get();
   try {
     return await rawWithWakeRetry(path, { ...options, token });

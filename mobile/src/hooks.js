@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { api } from './api';
+import { onDataChanged } from './events';
 
 /**
  * Fetch-on-mount + refetch-on-focus data hook.
@@ -48,6 +49,9 @@ export function useData(requests, deps = [], options = {}) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [run, refetchOnFocus])
   );
+
+  // التركيز وحده لا يكفي على الهاتف: نعيد التحميل كلما حُفظ شيء في أي نافذة
+  useEffect(() => onDataChanged(() => run(true)), [run]);
 
   return { data, loading, refreshing, error, reload: () => run(true) };
 }

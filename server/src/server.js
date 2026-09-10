@@ -15,6 +15,8 @@ const app = express();
 // Render / Vercel / any reverse proxy: needed for correct client IPs in rate limiting.
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+// بيانات حية: لا ETag ولا تخزين مؤقت، حتى لا يعرض الهاتف قائمة قديمة
+app.set('etag', false);
 
 // ------------------------------------------------------------ security headers
 app.use(helmet({
@@ -64,6 +66,10 @@ app.get('/', (_req, res) => res.json({ name: 'stores-manager-api', status: 'ok' 
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ------------------------------------------------------------ routes
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use('/api', globalLimiter);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/stores', require('./routes/stores'));

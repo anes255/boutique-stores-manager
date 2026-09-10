@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, FlatList, ScrollView, Alert, Platform,
+  View, Text, StyleSheet, Pressable, FlatList, ScrollView, Alert, Platform, Modal,
   KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -217,22 +217,39 @@ export default function Sell() {
         </View>
       ) : null}
 
-      {checkout ? (
-        <View style={styles.sheetWrap}>
+      {/*
+        السلة في نافذة Modal مستقلة وليست فوق شاشة البيع:
+        - ترسم فوق شريط التبويبات وشريط التنقل في أندرويد، فلا ينقطع زر التأكيد
+        - لمساتها معزولة عن شبكة المنتجات خلفها، فيصبح التمرير سلسا
+      */}
+      <Modal
+        visible={checkout}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={() => setCheckout(false)}
+      >
+        <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setCheckout(false)} />
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.sheetAnchor}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalAnchor}
           >
-            <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]}>
+            <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.grabber} />
-              <Text style={[type.title, { marginBottom: 4 }]}>السلة</Text>
+              <View style={styles.sheetHead}>
+                <Text style={type.title}>السلة</Text>
+                <Pressable onPress={() => setCheckout(false)} style={styles.closeBtn} hitSlop={10}>
+                  <Feather name="x" size={20} color={colors.ink} />
+                </Pressable>
+              </View>
 
-              {/* كل المحتوى قابل للتمرير، وأزرار التأكيد تبقى ثابتة بالأسفل */}
               <ScrollView
-                style={{ maxHeight: Math.max(180, windowHeight * 0.48) }}
+                style={{ maxHeight: Math.max(220, windowHeight * 0.58) }}
                 contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.md }}
                 keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
                 showsVerticalScrollIndicator
               >
                 <View>
@@ -299,7 +316,7 @@ export default function Sell() {
             </View>
           </KeyboardAvoidingView>
         </View>
-      ) : null}
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -337,8 +354,13 @@ const styles = StyleSheet.create({
     gap: 12, paddingHorizontal: spacing.md, paddingTop: 12, backgroundColor: colors.surface,
     borderTopWidth: 1, borderTopColor: colors.line, ...shadow(3),
   },
-  sheetWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: '#33291F55', justifyContent: 'flex-end' },
-  sheetAnchor: { justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: '#33291F66', justifyContent: 'flex-end' },
+  modalAnchor: { flex: 1, justifyContent: 'flex-end' },
+  sheetHead: { flexDirection: row, alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  closeBtn: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
+  },
   sheet: {
     backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8,
