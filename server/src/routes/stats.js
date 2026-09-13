@@ -1,7 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const { one, many } = require('../lib/db');
-const { wrap } = require('../lib/errors');
+const { wrap, badRequest } = require('../lib/errors');
 const { validate } = require('../lib/validate');
 const { authenticate, scopeStore, adminOnly } = require('../middleware/auth');
 const { reportLimiter } = require('../middleware/limits');
@@ -122,8 +122,20 @@ router.get('/overview', validate(rangeSchema, 'query'), scopeStore({ required: f
  * الأرقام الثلاثة لشاشة المحل البسيطة، لليوم ولهذا الشهر:
  * الربح من المبيعات، الخسارة (بضاعة تالفة أو ضائعة)، والمصاريف (كل ما عدا ذلك).
  */
-router.get('/simple', scopeStore(), wrap(async (req, res) => {
+const simpleQuery = z.object({
+  store_id: z.string().uuid().optional(),
+  // فترة يختارها المستخدم، مثلا من 2 سبتمبر إلى 5 نوفمبر (اليومان داخلان)
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'تاريخ غير صحيح').optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'تاريخ غير صحيح').optional(),
+});
+
+router.get('/simple', validate(simpleQuery, 'query'), scopeStore(), wrap(async (req, res) => {
   const s = req.storeId;
+  const { from, to } = req.validatedQuery;
+  const hasRange = !!(from && to);
+  if (hasRange && from > to) throw badRequest('تاريخ البداية بعد تاريخ النهاية');
+  const f = hasRange ? from : null;
+  const t = hasRange ? to : null;
   const sales = await one(
     `SELECT
        COALESCE(sum(profit) FILTER (WHERE created_at >= date_trunc('day', now())), 0)   AS today_profit,
@@ -131,18 +143,23 @@ router.get('/simple', scopeStore(), wrap(async (req, res) => {
        COUNT(*)             FILTER (WHERE created_at >= date_trunc('day', now()))::int  AS today_count,
        COALESCE(sum(profit) FILTER (WHERE created_at >= date_trunc('month', now())), 0) AS month_profit,
        COALESCE(sum(total)  FILTER (WHERE created_at >= date_trunc('month', now())), 0) AS month_revenue,
-       COUNT(*)             FILTER (WHERE created_at >= date_trunc('month', now()))::int AS month_count
+       COUNT(*)             FILTER (WHERE created_at >= date_trunc('month', now()))::int AS month_count,
+       COALESCE(sum(profit) FILTER (WHERE created_at >= $2::date AND created_at < $3::date + 1), 0)  AS range_profit,
+       COALESCE(sum(total)  FILTER (WHERE created_at >= $2::date AND created_at < $3::date + 1), 0)  AS range_revenue,
+       COUNT(*)             FILTER (WHERE created_at >= $2::date AND created_at < $3::date + 1)::int AS range_count
      FROM sales WHERE status = 'completed' AND store_id = $1`,
-    [s]
+    [s, f, t]
   );
   const spend = await one(
     `SELECT
        COALESCE(sum(amount) FILTER (WHERE category =  'loss' AND spent_at >= CURRENT_DATE), 0)                       AS today_loss,
        COALESCE(sum(amount) FILTER (WHERE category <> 'loss' AND spent_at >= CURRENT_DATE), 0)                       AS today_costs,
        COALESCE(sum(amount) FILTER (WHERE category =  'loss' AND spent_at >= date_trunc('month', CURRENT_DATE)), 0)  AS month_loss,
-       COALESCE(sum(amount) FILTER (WHERE category <> 'loss' AND spent_at >= date_trunc('month', CURRENT_DATE)), 0)  AS month_costs
+       COALESCE(sum(amount) FILTER (WHERE category <> 'loss' AND spent_at >= date_trunc('month', CURRENT_DATE)), 0)  AS month_costs,
+       COALESCE(sum(amount) FILTER (WHERE category =  'loss' AND spent_at BETWEEN $2::date AND $3::date), 0)         AS range_loss,
+       COALESCE(sum(amount) FILTER (WHERE category <> 'loss' AND spent_at BETWEEN $2::date AND $3::date), 0)         AS range_costs
      FROM expenses WHERE store_id = $1`,
-    [s]
+    [s, f, t]
   );
   const n = (v) => Number(v || 0);
   const period = (k) => {
@@ -156,7 +173,11 @@ router.get('/simple', scopeStore(), wrap(async (req, res) => {
       sales: sales[`${k}_count`],
     };
   };
-  res.json({ today: period('today'), month: period('month') });
+  res.json({
+    today: period('today'),
+    month: period('month'),
+    ...(hasRange ? { range: { from, to, ...period('range') } } : {}),
+  });
 }));
 
 /** Daily series: revenue, gross profit, purchases and expenses. Gap-filled. */

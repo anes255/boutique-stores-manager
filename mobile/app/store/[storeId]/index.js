@@ -6,10 +6,11 @@ import { api } from '../../../src/api';
 import { useAuth } from '../../../src/auth';
 import { useData } from '../../../src/hooks';
 import { useStoreRouteId } from '../../../src/store-route';
-import { colors, font, money, row, spacing } from '../../../src/theme';
+import { colors, font, money, row, spacing, MONTHS_AR } from '../../../src/theme';
 import { Screen, Loader } from '../../../src/components/ui';
 import {
   TopBar, BigButton, BigField, StatCard, Toggle, Stepper, Notice, Sheet, Feather, TONES,
+  SizePicker, ColorPicker, DatePicker, colorHex,
 } from '../../../src/components/simple';
 
 /**
@@ -22,6 +23,13 @@ const toNumber = (v) => {
   const n = Number(String(v ?? '').replace(',', '.').trim());
   return Number.isFinite(n) ? n : NaN;
 };
+
+// "2026-09-02" <- "2 سبتمبر 2026"
+const fmtDate = (iso) => {
+  const [y, m, d] = String(iso || '').split('-').map(Number);
+  return y ? `${d} ${MONTHS_AR[m - 1]} ${y}` : '';
+};
+const isoDay = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 
 const EXPENSE_KINDS = [
   { label: 'كراء', value: 'rent' },
@@ -36,6 +44,7 @@ export default function StoreScreen() {
   const { user, isAdmin, logout } = useAuth();
 
   const [period, setPeriod] = useState('today');
+  const [range, setRange] = useState(null); // { from, to } لما يختار المستخدم فترة
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState(null);
 
@@ -44,11 +53,12 @@ export default function StoreScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  const rangeOn = period === 'range' && range;
   const { data, loading, refreshing, error: loadError, reload } = useData({
     store: [`/api/stores/${storeId}`, {}],
-    sum: ['/api/stats/simple', { store_id: storeId }],
+    sum: ['/api/stats/simple', rangeOn ? { store_id: storeId, from: range.from, to: range.to } : { store_id: storeId }],
     products: ['/api/products', { store_id: storeId, limit: 200 }],
-  }, [storeId]);
+  }, [storeId, rangeOn ? range.from : null, rangeOn ? range.to : null]);
 
   const store = data.store?.store;
   const p = data.sum?.[period] || { profit: 0, loss: 0, costs: 0, net: 0, sales: 0 };
@@ -56,7 +66,7 @@ export default function StoreScreen() {
     const q = search.trim().toLowerCase();
     return (data.products?.products || [])
       .filter((x) => x.is_active)
-      .filter((x) => !q || String(x.name).toLowerCase().includes(q));
+      .filter((x) => !q || [x.name, x.size, x.color].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)));
   }, [data.products, search]);
   const allCount = (data.products?.products || []).filter((x) => x.is_active).length;
 
@@ -105,7 +115,11 @@ export default function StoreScreen() {
     if (!(cost >= 0)) throw new Error('سعر الشراء غير صحيح');
     if (!(sell > 0)) throw new Error('اكتب سعر البيع');
     if (!(stock >= 0)) throw new Error('الكمية غير صحيحة');
-    const payload = { name, cost_price: cost, sell_price: sell, stock: Math.floor(stock) };
+    const payload = {
+      name, cost_price: cost, sell_price: sell, stock: Math.floor(stock),
+      size: (form.size || '').trim() || null,
+      color: (form.color || '').trim() || null,
+    };
     if (dialog.product) {
       await api.patch(`/api/products/${dialog.product.id}`, payload);
       flash(`تم حفظ "${name}"`);
@@ -125,6 +139,18 @@ export default function StoreScreen() {
     flash(`سُجّل مصروف ${money(amount)} (${label})`);
     setDialog(null);
   });
+
+  const applyRange = () => {
+    if (form.from > form.to) { setError('تاريخ البداية يجب أن يكون قبل تاريخ النهاية'); return; }
+    setRange({ from: form.from, to: form.to });
+    setPeriod('range');
+    setDialog(null);
+  };
+  const openRange = () => {
+    const today = new Date();
+    const start = range?.from || isoDay(new Date(today.getFullYear(), today.getMonth(), 1));
+    open({ kind: 'range' }, { from: start, to: range?.to || isoDay(today), editing: 'from' });
+  };
 
   const confirmYes = () => run(async () => {
     await dialog.onYes();
@@ -160,10 +186,17 @@ export default function StoreScreen() {
         {loadError ? <Notice text={loadError} tone="red" /> : null}
 
         <Toggle
-          options={[{ label: 'اليوم', value: 'today' }, { label: 'هذا الشهر', value: 'month' }]}
+          options={[{ label: 'اليوم', value: 'today' }, { label: 'هذا الشهر', value: 'month' }, { label: 'فترة', value: 'range' }]}
           value={period}
-          onChange={setPeriod}
+          onChange={(v) => (v === 'range' ? openRange() : setPeriod(v))}
         />
+        {rangeOn ? (
+          <View style={styles.rangeLine}>
+            <Feather name="calendar" size={20} color={colors.primary} />
+            <Text style={styles.rangeText}>من {fmtDate(range.from)} إلى {fmtDate(range.to)}</Text>
+            <BigButton small filled={false} tone="orange" label="تغيير" onPress={openRange} />
+          </View>
+        ) : null}
 
         <StatCard tone="green" icon="trending-up" label="الربح" hint="من البيع" value={money(p.profit)} />
         <StatCard tone="red" icon="alert-triangle" label="الخسارة" hint="بضاعة تالفة أو ضائعة" value={money(p.loss)} />
@@ -180,7 +213,7 @@ export default function StoreScreen() {
         </View>
 
         <BigButton label="منتج جديد" icon="plus-circle" tone="green"
-          onPress={() => open({ kind: 'product-form' }, { name: '', cost: '', sell: '', stock: '' })} />
+          onPress={() => open({ kind: 'product-form' }, { name: '', cost: '', sell: '', stock: '', size: '', color: '' })} />
         <BigButton label="مصروف جديد" icon="credit-card" tone="orange"
           onPress={() => open({ kind: 'expense' }, { kind: 'rent', label: '', amount: '' })} />
 
@@ -213,6 +246,17 @@ export default function StoreScreen() {
                   <View style={[styles.pill, { backgroundColor: colors.bgAlt }]}>
                     <Text style={[styles.pillText, { color: colors.ink }]}>السعر: {money(x.sell_price)}</Text>
                   </View>
+                  {x.size ? (
+                    <View style={[styles.pill, { backgroundColor: colors.bgAlt }]}>
+                      <Text style={[styles.pillText, { color: colors.ink }]}>المقاس: {x.size}</Text>
+                    </View>
+                  ) : null}
+                  {x.color ? (
+                    <View style={[styles.pill, { backgroundColor: colors.bgAlt, flexDirection: row, alignItems: 'center', gap: 6 }]}>
+                      {colorHex(x.color) ? <View style={[styles.dot, { backgroundColor: colorHex(x.color) }]} /> : null}
+                      <Text style={[styles.pillText, { color: colors.ink }]}>{x.color}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
               <Feather name="chevron-left" size={26} color={colors.inkMuted} />
@@ -236,6 +280,7 @@ export default function StoreScreen() {
                 onPress={() => open({ kind: 'product-form', product }, {
                   name: product.name, cost: String(Number(product.cost_price)),
                   sell: String(Number(product.sell_price)), stock: String(Number(product.stock)),
+                  size: product.size || '', color: product.color || '',
                 })} />
               <BigButton label="حذف" icon="trash-2" tone="red" filled={false} style={{ flex: 1 }}
                 onPress={() => open({
@@ -254,6 +299,8 @@ export default function StoreScreen() {
                 {Number(product.stock) <= 0 ? 'نفد' : Number(product.stock)}
               </Text>
             </View>
+            {product.size ? <Line label="المقاس" value={product.size} /> : null}
+            {product.color ? <Line label="اللون" value={product.color} /> : null}
             <Line label="سعر الشراء" value={money(product.cost_price)} />
             <Line label="سعر البيع" value={money(product.sell_price)} />
             <Line label="الربح في القطعة" value={money(perPiece)} tone={perPiece >= 0 ? TONES.green.fg : TONES.red.fg} />
@@ -297,6 +344,12 @@ export default function StoreScreen() {
         onClose={close}
         footer={<BigButton label="حفظ" icon="check" tone="green" loading={busy} onPress={saveProduct} />}>
         <BigField label="اسم المنتج" value={form.name || ''} onChangeText={set('name')} placeholder="مثال: فستان صيفي" />
+        <Text style={styles.fieldTitle}>المقاس</Text>
+        <SizePicker value={form.size || ''} onChange={set('size')} />
+        <BigField value={form.size || ''} onChangeText={set('size')} placeholder="أو اكتب المقاس، مثلا 38" autoCorrect={false} />
+        <Text style={styles.fieldTitle}>اللون</Text>
+        <ColorPicker value={form.color || ''} onChange={set('color')} />
+        <BigField value={form.color || ''} onChangeText={set('color')} placeholder="أو اكتب اللون" />
         <BigField label="بكم اشتريته؟ (سعر الشراء)" value={form.cost ?? ''} onChangeText={set('cost')}
           placeholder="0" keyboardType="numeric" />
         <BigField label="بكم تبيعه؟ (سعر البيع)" value={form.sell ?? ''} onChangeText={set('sell')}
@@ -323,6 +376,28 @@ export default function StoreScreen() {
           placeholder="مثال: كراء شهر سبتمبر" />
         <BigField label="كم دفعت؟" value={form.amount || ''} onChangeText={set('amount')}
           placeholder="0" keyboardType="numeric" />
+        <Notice text={error} tone="red" />
+      </Sheet>
+
+      {/* ------------------------------------------------ اختيار فترة */}
+      <Sheet visible={dialog?.kind === 'range'} title="اختر الفترة" onClose={close}
+        footer={<BigButton label="عرض الأرقام" icon="check" tone="green" onPress={applyRange} />}>
+        <View style={{ flexDirection: row, gap: 10 }}>
+          {['from', 'to'].map((end) => (
+            <Pressable key={end} onPress={() => set('editing')(end)}
+              style={[styles.endBox, form.editing === end && styles.endBoxOn]}>
+              <Text style={styles.endLabel}>{end === 'from' ? 'من' : 'إلى'}</Text>
+              <Text style={styles.endValue}>{fmtDate(form[end])}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.hintCenter}>
+          {form.editing === 'from' ? 'اختر تاريخ البداية' : 'اختر تاريخ النهاية'}
+        </Text>
+        {form.from ? (
+          <DatePicker key={form.editing} value={form[form.editing] || form.from}
+            onChange={(v) => set(form.editing)(v)} />
+        ) : null}
         <Notice text={error} tone="red" />
       </Sheet>
 
@@ -391,4 +466,17 @@ const styles = StyleSheet.create({
   kinds: { flexDirection: row, flexWrap: 'wrap', gap: 8 },
   kind: { flexGrow: 1, flexBasis: '45%' },
   confirmText: { fontFamily: font.bodyBold, fontSize: 19, lineHeight: 32, color: colors.ink, ...rtl },
+  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: '#00000033' },
+  rangeLine: {
+    flexDirection: row, alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF',
+    borderRadius: 16, padding: 12, borderWidth: 1, borderColor: colors.line,
+  },
+  rangeText: { flex: 1, fontFamily: font.bodyBlack, fontSize: 16, lineHeight: 26, color: colors.ink, ...rtl },
+  endBox: {
+    flex: 1, alignItems: 'center', gap: 2, padding: 12, borderRadius: 18,
+    backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: colors.line,
+  },
+  endBoxOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  endLabel: { fontFamily: font.bodyBold, fontSize: 16, lineHeight: 24, color: colors.inkSoft },
+  endValue: { fontFamily: font.bodyBlack, fontSize: 17, lineHeight: 26, color: colors.ink, textAlign: 'center' },
 });

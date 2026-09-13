@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { colors, font, radius, row, shadow, spacing } from '../theme';
+import { colors, font, radius, row, shadow, spacing, MONTHS_AR } from '../theme';
 
 /**
  * عناصر كبيرة وواضحة لتطبيق يستعمله أي أحد: أزرار عالية، خط كبير، ألوان ثابتة المعنى.
@@ -183,6 +183,90 @@ export function Sheet({ visible, title, onClose, children, footer }) {
   );
 }
 
+/** زر اختيار صغير (مقاس، لون، شهر، يوم). الضغط مرة ثانية على المختار يلغيه إن سُمح بذلك. */
+export function Chip({ label, on, onPress, swatch, square, wide }) {
+  return (
+    <Pressable
+      onPress={() => { tap(); onPress?.(); }}
+      style={[styles.chip, square && styles.chipSquare, wide && styles.chipWide, on && styles.chipOn]}
+    >
+      {swatch ? <View style={[styles.swatch, { backgroundColor: swatch }]} /> : null}
+      <Text style={[styles.chipText, on && { color: '#FFFFFF' }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export const SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+export const COLORS = [
+  { name: 'أسود', hex: '#222222' }, { name: 'أبيض', hex: '#FFFFFF' }, { name: 'أحمر', hex: '#D93B3B' },
+  { name: 'أزرق', hex: '#2F6FD6' }, { name: 'أخضر', hex: '#2E9E62' }, { name: 'أصفر', hex: '#F2C230' },
+  { name: 'وردي', hex: '#F08DB5' }, { name: 'بني', hex: '#8B5A2B' }, { name: 'رمادي', hex: '#9A9A9A' },
+  { name: 'بيج', hex: '#E8D5B7' },
+];
+
+export function colorHex(name) {
+  const c = COLORS.find((x) => x.name === String(name || '').trim());
+  return c ? c.hex : null;
+}
+
+/** اختيار المقاس: أزرار جاهزة، والضغط على المختار يلغيه */
+export function SizePicker({ value, onChange }) {
+  return (
+    <View style={styles.grid}>
+      {SIZES.map((sz) => (
+        <Chip key={sz} label={sz} on={value === sz} onPress={() => onChange(value === sz ? '' : sz)} />
+      ))}
+    </View>
+  );
+}
+
+/** اختيار اللون: دائرة لون + اسمه */
+export function ColorPicker({ value, onChange }) {
+  return (
+    <View style={styles.grid}>
+      {COLORS.map((c) => (
+        <Chip key={c.name} label={c.name} swatch={c.hex} on={value === c.name}
+          onPress={() => onChange(value === c.name ? '' : c.name)} />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * اختيار تاريخ بثلاث لمسات: السنة، الشهر، اليوم. القيمة بالشكل YYYY-MM-DD.
+ * بدون تقويم معقد ولا لوحة مفاتيح.
+ */
+export function DatePicker({ value, onChange }) {
+  const [y, m, d] = String(value).split('-').map(Number);
+  const now = new Date();
+  const years = [now.getFullYear() - 1, now.getFullYear()];
+  const daysIn = new Date(y, m, 0).getDate();
+  const pick = (ny, nm, nd) => {
+    const dd = Math.min(nd, new Date(ny, nm, 0).getDate());
+    onChange(`${ny}-${String(nm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`);
+  };
+  return (
+    <View style={{ gap: 10 }}>
+      <Text style={styles.fieldLabel}>السنة</Text>
+      <View style={styles.grid}>
+        {years.map((yy) => <Chip key={yy} label={String(yy)} on={yy === y} onPress={() => pick(yy, m, d)} wide />)}
+      </View>
+      <Text style={styles.fieldLabel}>الشهر</Text>
+      <View style={styles.grid}>
+        {MONTHS_AR.map((name, i) => (
+          <Chip key={name} label={name} on={i + 1 === m} onPress={() => pick(y, i + 1, d)} wide />
+        ))}
+      </View>
+      <Text style={styles.fieldLabel}>اليوم</Text>
+      <View style={styles.grid}>
+        {Array.from({ length: daysIn }, (_, i) => i + 1).map((dd) => (
+          <Chip key={dd} label={String(dd)} on={dd === d} onPress={() => pick(y, m, dd)} square />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export { Feather };
 
 const rtl = { writingDirection: 'rtl', textAlign: 'right' };
@@ -255,4 +339,16 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
   },
   sheetFooter: { gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.lineSoft },
+
+  grid: { flexDirection: row, flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: row, alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 48, minWidth: 64, paddingHorizontal: 14, borderRadius: 14,
+    backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: colors.line,
+  },
+  chipSquare: { minWidth: 46, width: 46, height: 46, minHeight: 46, paddingHorizontal: 0 },
+  chipWide: { flexGrow: 1, flexBasis: '30%' },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontFamily: font.bodyBlack, fontSize: 17, lineHeight: 26, color: colors.ink },
+  swatch: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: '#00000033' },
 });
