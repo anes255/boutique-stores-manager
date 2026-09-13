@@ -73,14 +73,14 @@ export const font = {
 const rtlText = { writingDirection: 'rtl', textAlign: 'right' };
 
 export const type = {
-  hero: { fontFamily: font.display, fontSize: 28, lineHeight: 44, color: colors.ink, ...rtlText },
-  title: { fontFamily: font.display, fontSize: 21, lineHeight: 36, color: colors.ink, ...rtlText },
-  section: { fontFamily: font.displaySemi, fontSize: 16, lineHeight: 28, color: colors.ink, ...rtlText },
-  body: { fontFamily: font.body, fontSize: 15, lineHeight: 26, color: colors.inkSoft, ...rtlText },
-  bodyStrong: { fontFamily: font.bodyBold, fontSize: 15, lineHeight: 26, color: colors.ink, ...rtlText },
-  label: { fontFamily: font.bodyMedium, fontSize: 13, lineHeight: 22, color: colors.inkMuted, ...rtlText },
-  tiny: { fontFamily: font.bodyMedium, fontSize: 12, lineHeight: 20, color: colors.inkMuted, ...rtlText },
-  number: { fontFamily: font.bodyBlack, fontSize: 24, lineHeight: 36, color: colors.ink, ...rtlText },
+  hero: { fontFamily: font.display, fontSize: 30, lineHeight: 46, color: colors.ink, ...rtlText },
+  title: { fontFamily: font.display, fontSize: 24, lineHeight: 38, color: colors.ink, ...rtlText },
+  section: { fontFamily: font.displaySemi, fontSize: 19, lineHeight: 30, color: colors.ink, ...rtlText },
+  body: { fontFamily: font.body, fontSize: 17, lineHeight: 28, color: colors.inkSoft, ...rtlText },
+  bodyStrong: { fontFamily: font.bodyBold, fontSize: 17, lineHeight: 28, color: colors.ink, ...rtlText },
+  label: { fontFamily: font.bodyMedium, fontSize: 15, lineHeight: 24, color: colors.inkMuted, ...rtlText },
+  tiny: { fontFamily: font.bodyMedium, fontSize: 14, lineHeight: 22, color: colors.inkMuted, ...rtlText },
+  number: { fontFamily: font.bodyBlack, fontSize: 28, lineHeight: 40, color: colors.ink, ...rtlText },
 };
 
 /** ظل دافئ وناعم، ليس رماديا قاسيا. */

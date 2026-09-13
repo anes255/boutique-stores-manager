@@ -212,6 +212,46 @@ router.post('/:id/stock', writeLimiter, validate(adjustSchema), wrap(async (req,
   res.json({ product });
 }));
 
+// ------------------------------------------------------------ damaged / lost
+// ينقص المخزون ويسجّل الخسارة (بسعر الشراء) في عملية واحدة
+const lossSchema = z.object({
+  qty: z.coerce.number().positive('الكمية يجب أن تكون أكبر من الصفر').max(100000),
+  note: z.string().trim().max(160).optional().nullable(),
+});
+
+router.post('/:id/loss', writeLimiter, validate(lossSchema), wrap(async (req, res) => {
+  const existing = await one('SELECT * FROM products WHERE id = $1', [req.params.id]);
+  if (!existing) throw notFound('المنتج غير موجود');
+  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المنتج غير موجود');
+  req.storeId = existing.store_id;
+
+  const qty = Number(req.body.qty);
+  if (qty > Number(existing.stock)) throw badRequest(`بقي ${Number(existing.stock)} فقط من "${existing.name}"`);
+  const amount = Number((qty * Number(existing.cost_price)).toFixed(2));
+
+  const product = await tx(async (c) => {
+    const { rows } = await c.query(
+      'UPDATE products SET stock = stock - $1, updated_at = now() WHERE id = $2 RETURNING *',
+      [qty, existing.id]
+    );
+    await c.query(
+      `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
+       VALUES ($1,$2,$3,'out',$4,$5,'تالف أو ضائع')`,
+      [existing.store_id, existing.id, req.user.id, -qty, rows[0].stock]
+    );
+    if (amount > 0) {
+      await c.query(
+        `INSERT INTO expenses (store_id, user_id, category, label, amount, note)
+         VALUES ($1,$2,'loss',$3,$4,$5)`,
+        [existing.store_id, req.user.id, `تالف أو ضائع: ${existing.name} × ${qty}`, amount, req.body.note || null]
+      );
+    }
+    return rows[0];
+  });
+  audit(req, 'product.loss', 'product', product.id, { name: existing.name, qty, amount });
+  res.json({ product, amount });
+}));
+
 // ------------------------------------------------------------ delete
 router.delete('/:id', writeLimiter, wrap(async (req, res) => {
   const existing = await one('SELECT * FROM products WHERE id = $1', [req.params.id]);

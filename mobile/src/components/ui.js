@@ -410,17 +410,17 @@ const styles = StyleSheet.create({
 
   button: {
     flexDirection: row, alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 13, paddingHorizontal: 18, borderRadius: radius.md, borderWidth: 1,
+    paddingVertical: 16, paddingHorizontal: 18, borderRadius: radius.md, borderWidth: 1,
   },
-  buttonText: { fontFamily: font.bodyBold, fontSize: 15.5, lineHeight: 26 },
+  buttonText: { fontFamily: font.bodyBold, fontSize: 17, lineHeight: 28 },
 
   input: {
     flexDirection: row, alignItems: 'center', gap: 8,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line,
-    borderRadius: radius.md, paddingHorizontal: 14, minHeight: 52,
+    borderRadius: radius.md, paddingHorizontal: 14, minHeight: 58,
   },
   inputText: {
-    flex: 1, fontFamily: font.body, fontSize: 15.5, color: colors.ink,
+    flex: 1, fontFamily: font.body, fontSize: 17, color: colors.ink,
     paddingVertical: 12, textAlign: 'right', writingDirection: 'rtl',
   },
 

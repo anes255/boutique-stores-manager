@@ -118,6 +118,47 @@ router.get('/overview', validate(rangeSchema, 'query'), scopeStore({ required: f
   });
 }));
 
+/**
+ * الأرقام الثلاثة لشاشة المحل البسيطة، لليوم ولهذا الشهر:
+ * الربح من المبيعات، الخسارة (بضاعة تالفة أو ضائعة)، والمصاريف (كل ما عدا ذلك).
+ */
+router.get('/simple', scopeStore(), wrap(async (req, res) => {
+  const s = req.storeId;
+  const sales = await one(
+    `SELECT
+       COALESCE(sum(profit) FILTER (WHERE created_at >= date_trunc('day', now())), 0)   AS today_profit,
+       COALESCE(sum(total)  FILTER (WHERE created_at >= date_trunc('day', now())), 0)   AS today_revenue,
+       COUNT(*)             FILTER (WHERE created_at >= date_trunc('day', now()))::int  AS today_count,
+       COALESCE(sum(profit) FILTER (WHERE created_at >= date_trunc('month', now())), 0) AS month_profit,
+       COALESCE(sum(total)  FILTER (WHERE created_at >= date_trunc('month', now())), 0) AS month_revenue,
+       COUNT(*)             FILTER (WHERE created_at >= date_trunc('month', now()))::int AS month_count
+     FROM sales WHERE status = 'completed' AND store_id = $1`,
+    [s]
+  );
+  const spend = await one(
+    `SELECT
+       COALESCE(sum(amount) FILTER (WHERE category =  'loss' AND spent_at >= CURRENT_DATE), 0)                       AS today_loss,
+       COALESCE(sum(amount) FILTER (WHERE category <> 'loss' AND spent_at >= CURRENT_DATE), 0)                       AS today_costs,
+       COALESCE(sum(amount) FILTER (WHERE category =  'loss' AND spent_at >= date_trunc('month', CURRENT_DATE)), 0)  AS month_loss,
+       COALESCE(sum(amount) FILTER (WHERE category <> 'loss' AND spent_at >= date_trunc('month', CURRENT_DATE)), 0)  AS month_costs
+     FROM expenses WHERE store_id = $1`,
+    [s]
+  );
+  const n = (v) => Number(v || 0);
+  const period = (k) => {
+    const profit = n(sales[`${k}_profit`]);
+    const loss = n(spend[`${k}_loss`]);
+    const costs = n(spend[`${k}_costs`]);
+    return {
+      profit, loss, costs,
+      net: Number((profit - loss - costs).toFixed(2)),
+      revenue: n(sales[`${k}_revenue`]),
+      sales: sales[`${k}_count`],
+    };
+  };
+  res.json({ today: period('today'), month: period('month') });
+}));
+
 /** Daily series: revenue, gross profit, purchases and expenses. Gap-filled. */
 router.get('/series', validate(rangeSchema, 'query'), scopeStore({ required: false }), wrap(async (req, res) => {
   const s = req.storeId;

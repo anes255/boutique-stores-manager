@@ -50,7 +50,6 @@ export default function RootLayout() {
           <Stack.Screen name="login" options={{ animation: 'fade' }} />
           <Stack.Screen name="admin" options={{ animation: 'fade' }} />
           <Stack.Screen name="store/[storeId]" />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>

@@ -8,7 +8,7 @@ import { colors, spacing, type } from '../../../src/theme';
 import { Button, Loader } from '../../../src/components/ui';
 
 /**
- * كل محل له مكدّس شاشات خاص به: التبويبات، ثم النماذج فوقها.
+ * كل محل له شاشة واحدة، وكل الإجراءات في نوافذ فوقها.
  *
  * هذا التخطيط هو المكان الوحيد الذي يحدد معرّف المحل، ثم يمرره لكل الشاشات
  * تحته. المصدر الأول معامل هذا المسار نفسه (هو صاحب الجزء [storeId])،
@@ -40,7 +40,7 @@ export default function StoreStack() {
           {`القيمة المستلمة: ${String(params.storeId)} · ${pathname}`}
         </Text>
         <Button title="الرجوع" icon="chevron-right" variant="soft"
-          onPress={() => router.replace(user.role === 'admin' ? '/admin/stores' : '/')} />
+          onPress={() => router.replace(user.role === 'admin' ? '/admin' : '/')} />
       </View>
     );
   }
@@ -59,7 +59,7 @@ export default function StoreStack() {
           animation: 'slide_from_bottom',
         }}
       >
-        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="index" />
       </Stack>
     </StoreRouteContext.Provider>
   );
