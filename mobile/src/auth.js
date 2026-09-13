@@ -108,6 +108,13 @@ export function AuthProvider({ children }) {
     setUser(me.user);
   }, [persist]);
 
+  /** المالك يغيّر اسم المستخدم و/أو كلمة السر. الخادم يعيد جلسة جديدة لهذا الجهاز. */
+  const updateCredentials = useCallback(async (body) => {
+    const data = await api.post('/api/auth/credentials', body);
+    await persist(data.accessToken, data.refreshToken, data.user);
+    return data.user;
+  }, [persist]);
+
   const refreshUser = useCallback(async () => {
     const me = await api.get('/api/auth/me');
     setUser(me.user);
@@ -121,8 +128,9 @@ export function AuthProvider({ children }) {
     login,
     logout,
     changePassword,
+    updateCredentials,
     refreshUser,
-  }), [user, booting, login, logout, changePassword, refreshUser]);
+  }), [user, booting, login, logout, changePassword, updateCredentials, refreshUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

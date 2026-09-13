@@ -2,9 +2,9 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { z } = require('zod');
 const { one, query } = require('../lib/db');
-const { wrap, unauthorized, badRequest } = require('../lib/errors');
+const { wrap, unauthorized, badRequest, conflict } = require('../lib/errors');
 const { validate } = require('../lib/validate');
-const { authenticate, audit } = require('../middleware/auth');
+const { authenticate, requireRole, audit } = require('../middleware/auth');
 const { loginLimiter, refreshLimiter } = require('../middleware/limits');
 const {
   signAccessToken, issueRefreshToken, consumeRefreshToken,
@@ -118,5 +118,46 @@ router.post('/change-password', authenticate, validate(changeSchema), wrap(async
   const refreshToken = await issueRefreshToken(req.user.id, req.headers['user-agent']);
   res.json({ ok: true, accessToken: signAccessToken(req.user), refreshToken });
 }));
+
+// ---------------------------------------------------------------- owner: change own username / password
+// يتطلب كلمة السر الحالية. بعد التغيير تُغلق كل الجلسات الأخرى، وهذا الجهاز يأخذ جلسة جديدة.
+const credentialsSchema = z.object({
+  currentPassword: z.string().min(1, 'اكتب كلمة السر الحالية').max(200),
+  username: z.string().trim().min(3, 'اسم المستخدم: 3 حروف أو أرقام على الأقل').max(160)
+    .regex(/^\S+$/, 'اسم المستخدم بدون فراغات').optional(),
+  newPassword: z.string().min(8, 'كلمة السر: 8 حروف أو أرقام على الأقل').max(200).optional(),
+}).refine((b) => b.username || b.newPassword, { message: 'لا يوجد شيء لتغييره' });
+
+router.post('/credentials', loginLimiter, authenticate, requireRole('admin'), validate(credentialsSchema),
+  wrap(async (req, res) => {
+    const row = await one('SELECT email, password_hash FROM users WHERE id = $1', [req.user.id]);
+    const ok = await bcrypt.compare(req.body.currentPassword, row.password_hash);
+    if (!ok) throw badRequest('كلمة السر الحالية غير صحيحة');
+
+    const sets = [];
+    const values = [];
+    if (req.body.username) {
+      const username = req.body.username.toLowerCase();
+      if (username !== String(row.email).toLowerCase()) {
+        const taken = await one('SELECT id FROM users WHERE lower(email) = $1 AND id <> $2', [username, req.user.id]);
+        if (taken) throw conflict('اسم المستخدم هذا مستعمل في حساب آخر');
+        values.push(username); sets.push(`email = $${values.length}`);
+      }
+    }
+    if (req.body.newPassword) {
+      values.push(await bcrypt.hash(req.body.newPassword, 12));
+      sets.push(`password_hash = $${values.length}`, 'must_change_password = false');
+    }
+    if (!sets.length) throw badRequest('لا يوجد شيء لتغييره');
+
+    values.push(req.user.id);
+    await query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${values.length}`, values);
+    await revokeAllForUser(req.user.id);
+    audit(req, 'auth.credentials_changed', 'user', req.user.id,
+      { username: !!req.body.username, password: !!req.body.newPassword });
+
+    const refreshToken = await issueRefreshToken(req.user.id, req.headers['user-agent']);
+    res.json({ ok: true, accessToken: signAccessToken(req.user), refreshToken, user: await publicUser(req.user.id) });
+  }));
 
 module.exports = router;

@@ -15,10 +15,12 @@ async function runMigrations() {
   await query(sql);
   console.log('  schema ok');
 
+  // المالك يُنشأ مرة واحدة فقط، عندما لا يوجد أي مالك. لو بحثنا باسم ADMIN_EMAIL،
+  // فإن تغيير المالك لاسم مستخدمه كان سيعيد إنشاء الحساب القديم مع كل نشر.
   const email = (process.env.ADMIN_EMAIL || 'admin@store.com').toLowerCase();
-  const existing = await one('SELECT id FROM users WHERE lower(email) = $1', [email]);
+  const existing = await one("SELECT email FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1");
   if (existing) {
-    console.log(`  admin already exists (${email})`);
+    console.log(`  admin already exists (${existing.email})`);
     return;
   }
 

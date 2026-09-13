@@ -24,7 +24,7 @@ function suggestPassword() {
 
 export default function Admin() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { user, logout, updateCredentials } = useAuth();
 
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +105,22 @@ export default function Admin() {
     open({ kind: 'creds', storeName: dialog.store.name, username: dialog.login.email, password });
   });
 
+  const saveMyUsername = () => run(async () => {
+    const username = (form.username || '').trim().toLowerCase();
+    if (!/^\S{3,}$/.test(username)) throw new Error('اسم المستخدم: 3 حروف أو أرقام على الأقل، بدون فراغات');
+    if (!form.current) throw new Error('اكتب كلمة السر الحالية للتأكيد');
+    const updated = await updateCredentials({ currentPassword: form.current, username });
+    open({ kind: 'my-done', username: updated.email });
+  });
+
+  const saveMyPassword = () => run(async () => {
+    if (!form.current) throw new Error('اكتب كلمة السر الحالية');
+    if ((form.next || '').length < 8) throw new Error('كلمة السر الجديدة: 8 حروف أو أرقام على الأقل');
+    await updateCredentials({ currentPassword: form.current, newPassword: form.next });
+    setDialog(null);
+    flash('تم تغيير كلمة السر. استعملها في المرة القادمة.');
+  });
+
   const confirmYes = () => run(async () => {
     await dialog.onYes();
     setDialog(null);
@@ -119,12 +135,9 @@ export default function Admin() {
       <TopBar
         title="محلاتي"
         subtitle="صفحة المالك"
-        actionLabel="خروج"
-        actionIcon="log-out"
-        onAction={() => open({
-          kind: 'confirm', text: 'هل تريد الخروج من التطبيق؟', yes: 'نعم، اخرج',
-          onYes: async () => { await logout(); router.replace('/login'); },
-        })}
+        actionLabel="الإعدادات"
+        actionIcon="settings"
+        onAction={() => open({ kind: 'settings' })}
       />
       <Screen refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }}>
         <Notice text={notice} />
@@ -227,6 +240,54 @@ export default function Admin() {
         <View style={styles.credBox}>
           <Text style={styles.credLabel}>كلمة السر</Text>
           <Text selectable style={styles.credValue}>{dialog?.password}</Text>
+        </View>
+      </Sheet>
+
+      <Sheet visible={dialog?.kind === 'settings'} title="الإعدادات" onClose={close}
+        footer={(
+          <>
+            <BigButton label="تغيير اسم المستخدم" icon="user" tone="blue"
+              onPress={() => open({ kind: 'my-username' }, { username: user?.email || '', current: '' })} />
+            <BigButton label="تغيير كلمة السر" icon="lock" tone="blue"
+              onPress={() => open({ kind: 'my-password' }, { current: '', next: suggestPassword() })} />
+            <BigButton label="خروج من التطبيق" icon="log-out" tone="red" filled={false}
+              onPress={() => open({
+                kind: 'confirm', text: 'هل تريد الخروج من التطبيق؟', yes: 'نعم، اخرج',
+                onYes: async () => { await logout(); router.replace('/login'); },
+              })} />
+          </>
+        )}>
+        <View style={styles.credBox}>
+          <Text style={styles.credLabel}>اسم المستخدم الحالي</Text>
+          <Text selectable style={styles.credValue}>{user?.email}</Text>
+        </View>
+      </Sheet>
+
+      <Sheet visible={dialog?.kind === 'my-username'} title="تغيير اسم المستخدم" onClose={close}
+        footer={<BigButton label="حفظ" icon="check" tone="green" loading={busy} onPress={saveMyUsername} />}>
+        <BigField label="اسم المستخدم الجديد" value={form.username || ''} onChangeText={set('username')}
+          autoCapitalize="none" autoCorrect={false} hint="رقم هاتفك مثلا. بدون فراغات." />
+        <BigField label="كلمة السر الحالية (للتأكيد)" value={form.current || ''} onChangeText={set('current')}
+          secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+        <Notice text={error} tone="red" />
+      </Sheet>
+
+      <Sheet visible={dialog?.kind === 'my-password'} title="تغيير كلمة السر" onClose={close}
+        footer={<BigButton label="حفظ كلمة السر" icon="check" tone="green" loading={busy} onPress={saveMyPassword} />}>
+        <BigField label="كلمة السر الحالية" value={form.current || ''} onChangeText={set('current')}
+          secureTextEntry autoCapitalize="none" placeholder="••••••••" />
+        <BigField label="كلمة السر الجديدة" value={form.next || ''} onChangeText={set('next')}
+          autoCapitalize="none" autoCorrect={false}
+          hint="اقترحنا لك واحدة سهلة. 8 حروف أو أرقام على الأقل. احفظها في مكان آمن." />
+        <Notice text={error} tone="red" />
+      </Sheet>
+
+      <Sheet visible={dialog?.kind === 'my-done'} title="تم تغيير اسم المستخدم" onClose={close}
+        footer={<BigButton label="تم" icon="check" tone="green" onPress={() => setDialog(null)} />}>
+        <Text style={styles.confirmText}>من الآن، ادخل بهذا الاسم:</Text>
+        <View style={styles.credBox}>
+          <Text style={styles.credLabel}>اسم المستخدم</Text>
+          <Text selectable style={styles.credValue}>{dialog?.username}</Text>
         </View>
       </Sheet>
 
