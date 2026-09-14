@@ -47,8 +47,9 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="index" />
-          <Stack.Screen name="login" options={{ animation: 'fade' }} />
-          <Stack.Screen name="admin" options={{ animation: 'fade' }} />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="owner" options={{ animation: 'fade' }} />
           <Stack.Screen name="store/[storeId]" />
         </Stack>
       </AuthProvider>

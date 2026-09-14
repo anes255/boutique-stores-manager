@@ -3,84 +3,85 @@ const { z } = require('zod');
 const { one, many, query } = require('../lib/db');
 const { wrap, notFound, badRequest } = require('../lib/errors');
 const { validate } = require('../lib/validate');
-const { authenticate, scopeStore, audit } = require('../middleware/auth');
+const { authenticate, canUseStore, scopeStore, audit } = require('../middleware/auth');
 const { writeLimiter } = require('../middleware/limits');
+const { realDay, periodFields, resolvePeriod, notFuture } = require('../lib/time');
 
+/** المصاريف: اسم المصروف وقيمته وتاريخه. */
 const router = express.Router();
 router.use(authenticate);
 
-const CATEGORIES = ['rent', 'salary', 'utilities', 'supplies', 'marketing', 'transport', 'loss', 'tax', 'other'];
+// ------------------------------------------------------------ list (one day or a period)
+router.get('/', validate(z.object({ store_id: z.string().uuid().optional(), ...periodFields }), 'query'),
+  scopeStore({ required: false }), wrap(async (req, res) => {
+    const { from, to } = resolvePeriod(req.validatedQuery);
+    const where = `st.owner_id = $1 AND ($2::uuid IS NULL OR e.store_id = $2)
+                   AND e.spent_at BETWEEN $3::date AND $4::date`;
+    const params = [req.ownerId, req.storeId, from, to];
+
+    const rows = await many(
+      `SELECT e.id, e.label, e.amount, to_char(e.spent_at, 'YYYY-MM-DD') AS day,
+              e.store_id, st.name AS store_name
+         FROM expenses e JOIN stores st ON st.id = e.store_id
+        WHERE ${where}
+        ORDER BY e.spent_at DESC, e.created_at DESC
+        LIMIT 1000`,
+      params
+    );
+    const sum = await one(
+      `SELECT COALESCE(sum(e.amount), 0) AS total, count(*)::int AS count
+         FROM expenses e JOIN stores st ON st.id = e.store_id WHERE ${where}`,
+      params
+    );
+    res.json({ from, to, rows, total: Number(sum.total), count: sum.count });
+  }));
 
 const expenseSchema = z.object({
   store_id: z.string().uuid().optional(),
-  category: z.enum(CATEGORIES).default('other'),
-  label: z.string().trim().min(1, 'أعطه عنوانا قصيرا').max(140),
-  amount: z.coerce.number().positive('المبلغ يجب أن يكون أكبر من الصفر'),
-  spent_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  note: z.string().trim().max(300).optional().nullable(),
+  label: z.string().trim().min(1, 'اكتب اسم المصروف').max(140),
+  amount: z.coerce.number().positive('القيمة يجب أن تكون أكبر من الصفر').max(1e10),
+  date: realDay.optional(),
 });
 
-router.get('/', validate(z.object({
-  store_id: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(80),
-  offset: z.coerce.number().int().min(0).default(0),
-}), 'query'), scopeStore({ required: false }), wrap(async (req, res) => {
-  const q = req.validatedQuery;
-  const expenses = await many(
-    `SELECT e.*, u.full_name AS created_by, s.name AS store_name, s.currency
-       FROM expenses e
-       LEFT JOIN users u ON u.id = e.user_id
-       LEFT JOIN stores s ON s.id = e.store_id
-      WHERE ($1::uuid IS NULL OR e.store_id = $1)
-      ORDER BY e.spent_at DESC, e.created_at DESC LIMIT $2 OFFSET $3`,
-    [req.storeId, q.limit, q.offset]
-  );
-  const byCategory = await many(
-    `SELECT category, sum(amount) AS total FROM expenses
-      WHERE ($1::uuid IS NULL OR store_id = $1)
-        AND spent_at >= date_trunc('month', CURRENT_DATE)
-      GROUP BY category ORDER BY total DESC`,
-    [req.storeId]
-  );
-  res.json({ expenses, byCategory, categories: CATEGORIES });
-}));
-
+// ------------------------------------------------------------ create
 router.post('/', writeLimiter, validate(expenseSchema), scopeStore(), wrap(async (req, res) => {
   const b = req.body;
   const expense = await one(
-    `INSERT INTO expenses (store_id, user_id, category, label, amount, spent_at, note)
-     VALUES ($1,$2,$3,$4,$5,COALESCE($6::date, CURRENT_DATE),$7) RETURNING *`,
-    [req.storeId, req.user.id, b.category, b.label, b.amount, b.spent_at || null, b.note || null]
+    `INSERT INTO expenses (store_id, user_id, category, label, amount, spent_at)
+     VALUES ($1, $2, 'other', $3, $4, $5::date) RETURNING *`,
+    [req.storeId, req.user.id, b.label, b.amount, notFuture(b.date)]
   );
-  audit(req, 'expense.create', 'expense', expense.id, { amount: expense.amount, category: expense.category });
+  audit(req, 'expense.create', 'expense', expense.id, { amount: expense.amount });
   res.status(201).json({ expense });
 }));
 
-router.patch('/:id', writeLimiter, validate(expenseSchema.partial()), wrap(async (req, res) => {
-  const existing = await one('SELECT * FROM expenses WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('المصروف غير موجود');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المصروف غير موجود');
-  req.storeId = existing.store_id;
+async function loadExpense(req, id) {
+  const expense = await one('SELECT * FROM expenses WHERE id = $1', [id]);
+  if (!expense || !(await canUseStore(req.user, expense.store_id))) throw notFound('المصروف غير موجود');
+  req.storeId = expense.store_id;
+  return expense;
+}
 
+// ------------------------------------------------------------ edit
+router.patch('/:id', writeLimiter, validate(expenseSchema.omit({ store_id: true }).partial()), wrap(async (req, res) => {
+  await loadExpense(req, req.params.id);
   const sets = [];
   const values = [];
-  for (const f of ['category', 'label', 'amount', 'spent_at', 'note']) {
-    if (req.body[f] !== undefined) { values.push(req.body[f]); sets.push(`${f} = $${values.length}`); }
-  }
-  if (!sets.length) throw badRequest('لا يوجد شيء لتحديثه');
+  if (req.body.label !== undefined) { values.push(req.body.label); sets.push(`label = $${values.length}`); }
+  if (req.body.amount !== undefined) { values.push(req.body.amount); sets.push(`amount = $${values.length}`); }
+  if (req.body.date !== undefined) { values.push(notFuture(req.body.date)); sets.push(`spent_at = $${values.length}::date`); }
+  if (!sets.length) throw badRequest('لا يوجد شيء لتعديله');
   values.push(req.params.id);
   const expense = await one(`UPDATE expenses SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`, values);
   audit(req, 'expense.update', 'expense', expense.id, req.body);
   res.json({ expense });
 }));
 
+// ------------------------------------------------------------ delete
 router.delete('/:id', writeLimiter, wrap(async (req, res) => {
-  const existing = await one('SELECT * FROM expenses WHERE id = $1', [req.params.id]);
-  if (!existing) throw notFound('المصروف غير موجود');
-  if (req.user.role !== 'admin' && existing.store_id !== req.user.store_id) throw notFound('المصروف غير موجود');
-  await query('DELETE FROM expenses WHERE id = $1', [req.params.id]);
-  req.storeId = existing.store_id;
-  audit(req, 'expense.delete', 'expense', existing.id, { amount: existing.amount });
+  const expense = await loadExpense(req, req.params.id);
+  await query('DELETE FROM expenses WHERE id = $1', [expense.id]);
+  audit(req, 'expense.delete', 'expense', expense.id, { amount: expense.amount });
   res.json({ ok: true });
 }));
 

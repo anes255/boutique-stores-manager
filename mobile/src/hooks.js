@@ -18,7 +18,12 @@ export function useData(requests, deps = [], options = {}) {
   const buildRef = useRef(requests);
   buildRef.current = requests;
 
-  useEffect(() => () => { mounted.current = false; }, []);
+  // يُعاد إلى true عند كل تركيب: Fast Refresh وStrictMode يزيلان المؤثرات ثم يعيدانها،
+  // وبدون هذا تبقى القيمة false فتُهمل كل الردود التالية وتبقى الشاشة قديمة.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const run = useCallback(async (isRefresh) => {
     if (!enabled) { setLoading(false); return; }

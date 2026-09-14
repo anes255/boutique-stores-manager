@@ -227,3 +227,39 @@ CREATE INDEX IF NOT EXISTS audit_store_idx ON audit_logs (store_id, created_at D
 
 -- العملة الافتراضية بالعربية (آمن على قاعدة موجودة مسبقا)
 ALTER TABLE stores ALTER COLUMN currency SET DEFAULT 'دج';
+
+-- ============================================================
+--  v3: كل مستخدم رئيسي يملك فروعه ومنتجاته.
+--  المنتج يُعرّف مرة واحدة عند المستخدم الرئيسي، ولكل فرع كميته منه.
+-- ============================================================
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS owner_id uuid REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS join_code text;
+CREATE UNIQUE INDEX IF NOT EXISTS stores_join_code_uidx ON stores (upper(join_code)) WHERE join_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS stores_owner_idx ON stores (owner_id);
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_id uuid REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE products ALTER COLUMN store_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS products_owner_idx ON products (owner_id);
+
+-- كمية كل منتج في كل فرع
+CREATE TABLE IF NOT EXISTS branch_stock (
+  store_id   uuid NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  qty        numeric(12,2) NOT NULL DEFAULT 0 CHECK (qty >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (store_id, product_id)
+);
+CREATE INDEX IF NOT EXISTS branch_stock_product_idx ON branch_stock (product_id);
+
+-- الصندوق: عمليات الإيداع والسحب
+CREATE TABLE IF NOT EXISTS cash_moves (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id   uuid NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  user_id    uuid REFERENCES users(id) ON DELETE SET NULL,
+  kind       text NOT NULL CHECK (kind IN ('in','out')),
+  amount     numeric(14,2) NOT NULL CHECK (amount > 0),
+  note       text,
+  moved_on   date NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS cash_moves_store_idx ON cash_moves (store_id, moved_on DESC);

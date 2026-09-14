@@ -1,47 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text, StyleSheet } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useAuth } from '../src/auth';
-import { colors, font, radius, row, shadow, spacing, type } from '../src/theme';
-import { Button, Field, Feather, ErrorNote } from '../src/components/ui';
+import { colors, font } from '../src/theme';
+import { BigButton, BigField, Notice, Chip } from '../src/components/simple';
+import { Page, useGoBack } from '../src/components/kit';
 
+/** تسجيل دخول رئيسي / فرعي: اسم المستخدم، كلمة السر، دخول. وتحته «إنشاء حساب». */
 export default function Login() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { as: asParam } = useLocalSearchParams();
+  const as = asParam === 'owner' ? 'owner' : 'worker';
+  const goBack = useGoBack('/');
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState(null);
   const slowTimer = useRef(null);
 
   // الخادم المجاني ينام بعد فترة خمول، وإيقاظه يأخذ وقتا.
-  // نطمئن المستخدم بدل أن يظن أن التطبيق معلّق.
   useEffect(() => {
-    if (busy) {
-      slowTimer.current = setTimeout(() => setSlow(true), 6000);
-    } else {
-      clearTimeout(slowTimer.current);
-      setSlow(false);
-    }
+    if (busy) slowTimer.current = setTimeout(() => setSlow(true), 6000);
+    else { clearTimeout(slowTimer.current); setSlow(false); }
     return () => clearTimeout(slowTimer.current);
   }, [busy]);
 
   async function onSubmit() {
-    if (!email.trim() || !password) {
-      setError('أدخل اسم المستخدم وكلمة السر للمتابعة');
-      return;
-    }
+    if (!username.trim() || !password) { setError('اكتب اسم المستخدم وكلمة السر'); return; }
     setBusy(true);
     setError(null);
     try {
-      const user = await login(email, password);
-      router.replace(user.role === 'admin' ? '/admin' : `/store/${user.store_id}`);
+      const user = await login(username, password, as);
+      router.replace(user.role === 'admin' ? '/owner' : `/store/${user.store_id}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -50,84 +45,26 @@ export default function Login() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={[styles.wrap, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 30 }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.brandBlock}>
-          <View style={styles.mark}><Text style={styles.markText}>م</Text></View>
-          <Text style={[type.hero, { marginTop: 18, textAlign: 'center' }]}>مرحبا بعودتك</Text>
-          <Text style={[type.body, { textAlign: 'center' }]}>
-            سجّل الدخول لتفتح محلك وأرقامك وفريقك.
-          </Text>
-        </View>
+    <Page title={as === 'owner' ? 'تسجيل دخول رئيسي' : 'تسجيل دخول فرعي'}
+      subtitle={as === 'owner' ? 'مستخدم رئيسي' : 'مستخدم فرعي'} onBack={goBack}>
+      <BigField label="اسم المستخدم" value={username} onChangeText={setUsername}
+        placeholder="مثال: 0770000000" autoCapitalize="none" autoCorrect={false} textContentType="username" />
+      <BigField label="كلمة السر" value={password} onChangeText={setPassword} placeholder="••••••••"
+        secureTextEntry={!show} autoCapitalize="none" textContentType="password"
+        returnKeyType="go" onSubmitEditing={onSubmit} />
+      <Chip label={show ? 'إخفاء كلمة السر' : 'إظهار كلمة السر'} onPress={() => setShow((v) => !v)} />
 
-        <View style={styles.card}>
-          <Field
-            label="اسم المستخدم أو البريد"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="مثال: 0770000000"
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="username"
-            returnKeyType="next"
-          />
+      <Notice text={error} tone="red" />
+      <BigButton label="دخول" icon="log-in" tone="green" loading={busy} onPress={onSubmit} />
+      {slow ? <Text style={styles.hint}>جاري إيقاظ الخادم… قد يستغرق هذا دقيقة في أول استعمال.</Text> : null}
 
-          <View style={{ gap: 6 }}>
-            <Text style={[type.label, { color: colors.inkSoft }]}>كلمة السر</Text>
-            <View style={styles.passwordWrap}>
-              <Field
-                style={{ flex: 1 }}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                textContentType="password"
-                returnKeyType="go"
-                onSubmitEditing={onSubmit}
-              />
-              <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eye} hitSlop={8}>
-                <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={colors.inkMuted} />
-              </Pressable>
-            </View>
-          </View>
-
-          <ErrorNote message={error} />
-
-          <Button title="دخول" onPress={onSubmit} loading={busy} icon="log-in" />
-
-          {slow ? (
-            <Text style={[type.tiny, { textAlign: 'center' }]}>
-              جاري إيقاظ الخادم… قد يستغرق هذا دقيقة في أول استعمال.
-            </Text>
-          ) : null}
-        </View>
-
-        <Text style={[type.tiny, { textAlign: 'center', marginTop: 6 }]}>
-          حسابات الدخول ينشئها المالك. اطلب منه بيانات الدخول الخاصة بمحلك.
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Text style={[styles.hint, { marginTop: 18 }]}>ليس لديك حساب؟</Text>
+      <BigButton label="إنشاء حساب" icon="user-plus" tone="blue" filled={false}
+        onPress={() => router.push({ pathname: '/register', params: { as } })} />
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: spacing.lg, gap: spacing.lg, flexGrow: 1, justifyContent: 'center' },
-  brandBlock: { alignItems: 'center', gap: 6 },
-  mark: {
-    width: 76, height: 76, borderRadius: 27, backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center', ...shadow(3),
-  },
-  markText: { fontFamily: font.display, fontSize: 34, color: colors.white, lineHeight: 54 },
-  card: {
-    backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg,
-    gap: spacing.md, borderWidth: 1, borderColor: colors.lineSoft, ...shadow(2),
-  },
-  passwordWrap: { flexDirection: row, alignItems: 'center' },
-  eye: { position: 'absolute', left: 14, padding: 4 },
+  hint: { fontFamily: font.bodyBold, fontSize: 16, lineHeight: 26, color: colors.inkSoft, textAlign: 'center' },
 });

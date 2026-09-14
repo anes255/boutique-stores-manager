@@ -1,190 +1,174 @@
 const express = require('express');
 const { z } = require('zod');
-const { one, many } = require('../lib/db');
-const { wrap, notFound, badRequest } = require('../lib/errors');
+const { one, many, tx } = require('../lib/db');
+const { wrap, notFound } = require('../lib/errors');
 const { validate } = require('../lib/validate');
-const { authenticate, scopeStore, audit } = require('../middleware/auth');
+const { authenticate, canUseStore, scopeStore, audit } = require('../middleware/auth');
 const { writeLimiter } = require('../middleware/limits');
-const { tx } = require('../lib/db');
+const { changeStock } = require('../lib/stock');
+const { TZ, today, realDay, periodFields, resolvePeriod, notFuture, round2 } = require('../lib/time');
 
+/**
+ * عمليات البيع. كل سطر في الجدول = منتج واحد بكمية وسعر.
+ * البيع ينقص مخزون الفرع، والتعديل والحذف يعيدان الفرق إليه.
+ */
 const router = express.Router();
 router.use(authenticate);
 
-const itemSchema = z.object({
-  product_id: z.string().uuid().optional().nullable(),
-  name: z.string().trim().min(1).max(160),
-  size: z.string().trim().max(40).optional().nullable(),
-  color: z.string().trim().max(60).optional().nullable(),
-  unit: z.string().trim().max(24).optional().nullable(),
-  qty: z.coerce.number().positive('الكمية يجب أن تكون أكبر من الصفر').max(100000),
-  unit_price: z.coerce.number().min(0),
-});
+// ------------------------------------------------------------ list (one day or a period)
+router.get('/', validate(z.object({ store_id: z.string().uuid().optional(), ...periodFields }), 'query'),
+  scopeStore({ required: false }), wrap(async (req, res) => {
+    const { from, to } = resolvePeriod(req.validatedQuery);
+    const where = `st.owner_id = $1 AND ($2::uuid IS NULL OR s.store_id = $2) AND s.status = 'completed'
+                   AND (s.created_at AT TIME ZONE $3)::date BETWEEN $4::date AND $5::date`;
+    const params = [req.ownerId, req.storeId, TZ, from, to];
 
-const saleSchema = z.object({
-  store_id: z.string().uuid().optional(),
-  customer_name: z.string().trim().max(120).optional().nullable(),
-  customer_phone: z.string().trim().max(40).optional().nullable(),
-  discount: z.coerce.number().min(0).default(0),
-  payment_method: z.enum(['cash', 'card', 'transfer', 'other']).default('cash'),
-  note: z.string().trim().max(300).optional().nullable(),
-  items: z.array(itemSchema).min(1, 'أضف قطعة واحدة على الأقل').max(100),
-});
-
-const listSchema = z.object({
-  store_id: z.string().uuid().optional(),
-  from: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  to: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(60),
-  offset: z.coerce.number().int().min(0).default(0),
-});
-
-// ------------------------------------------------------------ list
-router.get('/', validate(listSchema, 'query'), scopeStore({ required: false }), wrap(async (req, res) => {
-  const q = req.validatedQuery;
-  const sales = await many(
-    `SELECT s.*, u.full_name AS seller, st.name AS store_name, st.currency,
-            (SELECT count(*) FROM sale_items i WHERE i.sale_id = s.id)::int AS item_count
-       FROM sales s
-       LEFT JOIN users u ON u.id = s.user_id
-       LEFT JOIN stores st ON st.id = s.store_id
-      WHERE ($1::uuid IS NULL OR s.store_id = $1)
-        AND ($2::timestamptz IS NULL OR s.created_at >= $2)
-        AND ($3::timestamptz IS NULL OR s.created_at < ($3::timestamptz + interval '1 day'))
-      ORDER BY s.created_at DESC LIMIT $4 OFFSET $5`,
-    [req.storeId, q.from || null, q.to || null, q.limit, q.offset]
-  );
-  res.json({ sales });
-}));
-
-// ------------------------------------------------------------ detail
-router.get('/:id', wrap(async (req, res) => {
-  const sale = await one(
-    `SELECT s.*, u.full_name AS seller, st.name AS store_name, st.currency
-       FROM sales s LEFT JOIN users u ON u.id = s.user_id
-       LEFT JOIN stores st ON st.id = s.store_id WHERE s.id = $1`, [req.params.id]
-  );
-  if (!sale) throw notFound('عملية البيع غير موجودة');
-  if (req.user.role !== 'admin' && sale.store_id !== req.user.store_id) throw notFound('عملية البيع غير موجودة');
-  const items = await many('SELECT * FROM sale_items WHERE sale_id = $1', [sale.id]);
-  res.json({ sale, items });
-}));
+    const rows = await many(
+      `SELECT i.id, i.sale_id, i.product_id, i.name, i.size, i.color, i.qty, i.unit_price, i.line_total,
+              s.store_id, st.name AS store_name, s.created_at,
+              to_char(s.created_at AT TIME ZONE $3, 'YYYY-MM-DD') AS day
+         FROM sale_items i
+         JOIN sales s ON s.id = i.sale_id
+         JOIN stores st ON st.id = s.store_id
+        WHERE ${where}
+        ORDER BY s.created_at DESC, i.id
+        LIMIT 1000`,
+      params
+    );
+    const sum = await one(
+      `SELECT COALESCE(sum(i.line_total), 0) AS total, COALESCE(sum(i.qty), 0) AS pieces, count(*)::int AS count
+         FROM sale_items i JOIN sales s ON s.id = i.sale_id JOIN stores st ON st.id = s.store_id
+        WHERE ${where}`,
+      params
+    );
+    res.json({ from, to, rows, total: Number(sum.total), pieces: Number(sum.pieces), count: sum.count });
+  }));
 
 // ------------------------------------------------------------ create
+const saleSchema = z.object({
+  store_id: z.string().uuid().optional(),
+  product_id: z.string().uuid({ message: 'اختر المنتج' }),
+  qty: z.coerce.number().int('الكمية عدد صحيح').positive('الكمية يجب أن تكون أكبر من الصفر').max(100000),
+  unit_price: z.coerce.number().min(0, 'السعر غير صحيح').max(1e9),
+  date: realDay.optional(),
+});
+
 router.post('/', writeLimiter, validate(saleSchema), scopeStore(), wrap(async (req, res) => {
   const b = req.body;
-  const storeId = req.storeId;
+  const day = notFuture(b.date);
+  const product = await one('SELECT * FROM products WHERE id = $1 AND owner_id = $2', [b.product_id, req.ownerId]);
+  if (!product) throw notFound('المنتج غير موجود');
 
-  const sale = await tx(async (c) => {
-    // Lock every referenced product row so concurrent tills cannot oversell.
-    const ids = [...new Set(b.items.map((i) => i.product_id).filter(Boolean))];
-    const stockMap = new Map();
-    if (ids.length) {
-      const { rows } = await c.query(
-        'SELECT id, name, stock, cost_price, store_id FROM products WHERE id = ANY($1::uuid[]) FOR UPDATE',
-        [ids]
-      );
-      for (const r of rows) {
-        if (r.store_id !== storeId) throw badRequest(`"${r.name}" لا ينتمي إلى هذا المحل`);
-        stockMap.set(r.id, r);
-      }
-      if (rows.length !== ids.length) throw badRequest('أحد المنتجات لم يعد موجودا');
-    }
+  const reference = 'S-' + Date.now().toString(36).toUpperCase();
+  const line = round2(b.qty * b.unit_price);
+  const cost = round2(Number(product.cost_price) * b.qty);
 
-    let subtotal = 0;
-    let costTotal = 0;
-    const prepared = b.items.map((i) => {
-      const p = i.product_id ? stockMap.get(i.product_id) : null;
-      const unitCost = p ? Number(p.cost_price) : 0;
-      const lineTotal = Number((i.qty * i.unit_price).toFixed(2));
-      subtotal += lineTotal;
-      costTotal += unitCost * i.qty;
-      return { ...i, unit_cost: unitCost, line_total: lineTotal };
+  const item = await tx(async (c) => {
+    await changeStock(c, {
+      storeId: req.storeId, productId: product.id, userId: req.user.id,
+      delta: -b.qty, kind: 'out', reason: `بيع ${reference}`, name: product.name,
     });
-
-    // Verify stock per product across all lines of the ticket.
-    const wanted = new Map();
-    for (const i of prepared) {
-      if (!i.product_id) continue;
-      wanted.set(i.product_id, (wanted.get(i.product_id) || 0) + Number(i.qty));
-    }
-    for (const [pid, qty] of wanted) {
-      const p = stockMap.get(pid);
-      if (Number(p.stock) < qty) {
-        throw badRequest(`بقي ${Number(p.stock)} فقط من "${p.name}"`);
-      }
-    }
-
-    const discount = Math.min(Number(b.discount), subtotal);
-    const total = Number((subtotal - discount).toFixed(2));
-    const profit = Number((total - costTotal).toFixed(2));
-    const reference = 'S-' + Date.now().toString(36).toUpperCase();
-
-    const { rows: saleRows } = await c.query(
-      `INSERT INTO sales (store_id, user_id, reference, customer_name, customer_phone,
-                          subtotal, discount, total, cost_total, profit, payment_method, note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [storeId, req.user.id, reference, b.customer_name || null, b.customer_phone || null,
-       subtotal, discount, total, costTotal, profit, b.payment_method, b.note || null]
+    // بيع بتاريخ سابق يُسجَّل في منتصف نهار ذلك اليوم بتوقيت المحل
+    const { rows: [sale] } = await c.query(
+      `INSERT INTO sales (store_id, user_id, reference, subtotal, discount, total, cost_total, profit,
+                          payment_method, created_at)
+       VALUES ($1, $2, $3, $4, 0, $4, $5, $6, 'cash',
+               CASE WHEN $7::date = $8::date THEN now() ELSE ($7::date + time '12:00') AT TIME ZONE $9 END)
+       RETURNING id`,
+      [req.storeId, req.user.id, reference, line, cost, round2(line - cost), day, today(), TZ]
     );
-    const created = saleRows[0];
-
-    for (const i of prepared) {
-      await c.query(
-        `INSERT INTO sale_items (sale_id, product_id, name, size, color, unit, qty, unit_price, unit_cost, line_total)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [created.id, i.product_id || null, i.name, i.size || null, i.color || null,
-         i.unit || null, i.qty, i.unit_price, i.unit_cost, i.line_total]
-      );
-    }
-
-    for (const [pid, qty] of wanted) {
-      const { rows } = await c.query(
-        'UPDATE products SET stock = stock - $1, updated_at = now() WHERE id = $2 RETURNING stock',
-        [qty, pid]
-      );
-      await c.query(
-        `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
-         VALUES ($1,$2,$3,'out',$4,$5,$6)`,
-        [storeId, pid, req.user.id, -qty, rows[0].stock, `بيع ${reference}`]
-      );
-    }
-
+    const { rows: [created] } = await c.query(
+      `INSERT INTO sale_items (sale_id, product_id, name, size, color, unit, qty, unit_price, unit_cost, line_total)
+       VALUES ($1, $2, $3, $4, $5, 'piece', $6, $7, $8, $9) RETURNING *`,
+      [sale.id, product.id, product.name, product.size, product.color, b.qty, b.unit_price,
+       Number(product.cost_price), line]
+    );
     return created;
   });
 
-  audit(req, 'sale.create', 'sale', sale.id, { total: sale.total, items: b.items.length });
-  res.status(201).json({ sale });
+  audit(req, 'sale.create', 'sale', item.sale_id, { name: product.name, qty: b.qty, total: line });
+  res.status(201).json({ item });
 }));
 
-// ------------------------------------------------------------ refund
-router.post('/:id/refund', writeLimiter, wrap(async (req, res) => {
-  const sale = await one('SELECT * FROM sales WHERE id = $1', [req.params.id]);
-  if (!sale) throw notFound('عملية البيع غير موجودة');
-  if (req.user.role !== 'admin' && sale.store_id !== req.user.store_id) throw notFound('عملية البيع غير موجودة');
-  if (sale.status === 'refunded') throw badRequest('هذه العملية مُرجعة من قبل');
-  req.storeId = sale.store_id;
+// ------------------------------------------------------------ helpers for one line
+async function loadItem(req, id) {
+  const item = await one(
+    `SELECT i.*, s.store_id FROM sale_items i JOIN sales s ON s.id = i.sale_id WHERE i.id = $1`, [id]
+  );
+  if (!item || !(await canUseStore(req.user, item.store_id))) throw notFound('عملية البيع غير موجودة');
+  req.storeId = item.store_id;
+  return item;
+}
 
-  await tx(async (c) => {
-    const { rows: items } = await c.query(
-      'SELECT product_id, qty FROM sale_items WHERE sale_id = $1 AND product_id IS NOT NULL', [sale.id]
-    );
-    for (const i of items) {
-      const { rows } = await c.query(
-        'UPDATE products SET stock = stock + $1, updated_at = now() WHERE id = $2 RETURNING stock',
-        [i.qty, i.product_id]
-      );
-      if (rows[0]) {
-        await c.query(
-          `INSERT INTO stock_movements (store_id, product_id, user_id, kind, qty, balance_after, reason)
-           VALUES ($1,$2,$3,'in',$4,$5,$6)`,
-          [sale.store_id, i.product_id, req.user.id, i.qty, rows[0].stock, `إرجاع ${sale.reference}`]
-        );
-      }
+/** مجموع العملية بعد تعديل سطورها. عملية بلا سطور تُحذف. */
+async function refreshSale(c, saleId) {
+  const { rows: [left] } = await c.query('SELECT count(*)::int AS n FROM sale_items WHERE sale_id = $1', [saleId]);
+  if (!left.n) {
+    await c.query('DELETE FROM sales WHERE id = $1', [saleId]);
+    return;
+  }
+  await c.query(
+    `UPDATE sales s SET subtotal = x.total, discount = 0, total = x.total,
+                        cost_total = x.cost, profit = x.total - x.cost
+       FROM (SELECT COALESCE(sum(line_total), 0) AS total, COALESCE(sum(unit_cost * qty), 0) AS cost
+               FROM sale_items WHERE sale_id = $1) x
+      WHERE s.id = $1`,
+    [saleId]
+  );
+}
+
+// ------------------------------------------------------------ edit (quantity / price)
+const editSchema = z.object({
+  qty: z.coerce.number().int('الكمية عدد صحيح').positive('الكمية يجب أن تكون أكبر من الصفر').max(100000).optional(),
+  unit_price: z.coerce.number().min(0, 'السعر غير صحيح').max(1e9).optional(),
+}).refine((b) => b.qty !== undefined || b.unit_price !== undefined, { message: 'لا يوجد شيء لتعديله' });
+
+router.patch('/items/:id', writeLimiter, validate(editSchema), wrap(async (req, res) => {
+  const found = await loadItem(req, req.params.id);
+
+  const item = await tx(async (c) => {
+    const { rows: [cur] } = await c.query('SELECT * FROM sale_items WHERE id = $1 FOR UPDATE', [found.id]);
+    if (!cur) throw notFound('عملية البيع غير موجودة');
+    const qty = req.body.qty ?? Number(cur.qty);
+    const price = req.body.unit_price ?? Number(cur.unit_price);
+    const delta = qty - Number(cur.qty);
+
+    if (delta && cur.product_id) {
+      await changeStock(c, {
+        storeId: found.store_id, productId: cur.product_id, userId: req.user.id,
+        delta: -delta, reason: 'تعديل عملية بيع', name: cur.name,
+      });
     }
-    await c.query("UPDATE sales SET status = 'refunded' WHERE id = $1", [sale.id]);
+    const { rows: [updated] } = await c.query(
+      'UPDATE sale_items SET qty = $1, unit_price = $2, line_total = $3 WHERE id = $4 RETURNING *',
+      [qty, price, round2(qty * price), cur.id]
+    );
+    await refreshSale(c, cur.sale_id);
+    return updated;
   });
 
-  audit(req, 'sale.refund', 'sale', sale.id, { total: sale.total });
+  audit(req, 'sale.edit', 'sale', item.sale_id, req.body);
+  res.json({ item });
+}));
+
+// ------------------------------------------------------------ delete (the pieces go back to stock)
+router.delete('/items/:id', writeLimiter, wrap(async (req, res) => {
+  const found = await loadItem(req, req.params.id);
+
+  await tx(async (c) => {
+    const { rows: [cur] } = await c.query('SELECT * FROM sale_items WHERE id = $1 FOR UPDATE', [found.id]);
+    if (!cur) throw notFound('عملية البيع غير موجودة');
+    if (cur.product_id) {
+      await changeStock(c, {
+        storeId: found.store_id, productId: cur.product_id, userId: req.user.id,
+        delta: Number(cur.qty), kind: 'in', reason: 'حذف عملية بيع', name: cur.name,
+      });
+    }
+    await c.query('DELETE FROM sale_items WHERE id = $1', [cur.id]);
+    await refreshSale(c, cur.sale_id);
+  });
+
+  audit(req, 'sale.delete', 'sale', found.sale_id, { name: found.name, qty: Number(found.qty) });
   res.json({ ok: true });
 }));
 

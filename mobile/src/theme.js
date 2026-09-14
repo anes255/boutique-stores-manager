@@ -156,6 +156,20 @@ export function prettyDate(iso) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${clock(d)}`;
 }
 
+/** تاريخ اليوم على الهاتف: "2026-09-14" */
+export const isoDay = (dt = new Date()) =>
+  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+export const todayIso = () => isoDay(new Date());
+
+/** "2026-08-05" ← "2026/08/05" كما في الأوراق */
+export const slashDate = (iso) => String(iso || '').slice(0, 10).replace(/-/g, '/');
+
+/** "2026-08-05" ← "5 أوت 2026" */
+export function longDate(iso) {
+  const [y, m, d] = String(iso || '').slice(0, 10).split('-').map(Number);
+  return y ? `${d} ${MONTHS[m - 1]} ${y}` : '';
+}
+
 /** "2026-03" ← "مارس 2026" */
 export function periodLabel(period) {
   if (!period || !/^\d{4}-\d{2}$/.test(period)) return period || '';

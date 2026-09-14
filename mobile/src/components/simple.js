@@ -112,9 +112,9 @@ export function BigField({ label, hint, style, ...props }) {
 }
 
 /** عدّاد كبير: ـ  1  + */
-export function Stepper({ value, onChange, max }) {
+export function Stepper({ value, onChange, max, min = 1 }) {
   const v = Number(value) || 0;
-  const clamp = (n) => Math.max(1, max != null ? Math.min(max, n) : n);
+  const clamp = (n) => Math.max(min, max != null ? Math.min(max, n) : n);
   return (
     <View style={styles.stepper}>
       <Pressable style={styles.stepBtn} onPress={() => { tap(); onChange(clamp(v - 1)); }} hitSlop={8}>
@@ -152,6 +152,10 @@ export function Notice({ text, tone = 'green' }) {
 export function Sheet({ visible, title, onClose, children, footer }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  // أثناء الإغلاق تنزلق النافذة للأسفل: نُبقي آخر محتوى ظاهرا بدل أن يتغير أمام العين
+  const last = React.useRef({ title, children, footer });
+  if (visible) last.current = { title, children, footer };
+  else ({ title, children, footer } = last.current);
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent
       onRequestClose={onClose}>

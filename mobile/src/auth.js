@@ -84,10 +84,21 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = useCallback(async (email, password) => {
+  // as: 'owner' (مستخدم رئيسي) أو 'worker' (مستخدم فرعي) حسب الزر الذي اختاره
+  const login = useCallback(async (email, password, as) => {
     const data = await api.raw('/api/auth/login', {
       method: 'POST',
-      body: { email: email.trim(), password },
+      body: { email: email.trim(), password, as },
+    });
+    await persist(data.accessToken, data.refreshToken, data.user);
+    return data.user;
+  }, [persist]);
+
+  /** إنشاء حساب من شاشة التسجيل، ثم الدخول به مباشرة */
+  const register = useCallback(async (as, body) => {
+    const data = await api.raw(as === 'owner' ? '/api/auth/register-owner' : '/api/auth/register-worker', {
+      method: 'POST',
+      body,
     });
     await persist(data.accessToken, data.refreshToken, data.user);
     return data.user;
@@ -126,11 +137,12 @@ export function AuthProvider({ children }) {
     booting,
     isAdmin: user?.role === 'admin',
     login,
+    register,
     logout,
     changePassword,
     updateCredentials,
     refreshUser,
-  }), [user, booting, login, logout, changePassword, updateCredentials, refreshUser]);
+  }), [user, booting, login, register, logout, changePassword, updateCredentials, refreshUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

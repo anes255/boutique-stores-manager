@@ -10,7 +10,6 @@
   "scripts": {
     "postinstall": "cd server && npm install --omit=dev",
     "start": "node server.js",
-    "migrate": "cd server && npm run migrate",
-    "seed": "cd server && npm run seed"
+    "migrate": "cd server && npm run migrate"
   }
 }

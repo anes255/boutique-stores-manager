@@ -74,11 +74,11 @@ app.use('/api', globalLimiter);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/stores', require('./routes/stores'));
 app.use('/api/products', require('./routes/products'));
+app.use('/api/stock', require('./routes/stock'));
 app.use('/api/sales', require('./routes/sales'));
-app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/expenses', require('./routes/expenses'));
-app.use('/api/employees', require('./routes/employees'));
-app.use('/api/stats', require('./routes/stats'));
+app.use('/api/cash', require('./routes/cash'));
+app.use('/api/reports', require('./routes/reports'));
 
 // ------------------------------------------------------------ 404 + errors
 app.use((_req, res) => res.status(404).json({ error: 'الرابط غير موجود', code: 'not_found' }));

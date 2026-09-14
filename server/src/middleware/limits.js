@@ -33,6 +33,16 @@ const refreshLimiter = rateLimit({
   message: message('محاولات تحديث كثيرة جدا.'),
 });
 
+// إنشاء الحسابات من شاشة التسجيل: كل الطلبات تُحسب (حتى الناجحة)،
+// وهذا ما يجعل تخمين رمز الفرع مستحيلا عمليا.
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: message('محاولات إنشاء حساب كثيرة. أعد المحاولة بعد ساعة.'),
+});
+
 // Anything that creates or mutates rows.
 const writeLimiter = rateLimit({
   windowMs: 60_000,
@@ -67,6 +77,7 @@ module.exports = {
   globalLimiter,
   loginLimiter,
   refreshLimiter,
+  registerLimiter,
   writeLimiter,
   adminSensitiveLimiter,
   reportLimiter,

@@ -1,6 +1,12 @@
 const { one, query } = require('../lib/db');
 const { verifyAccessToken } = require('../lib/tokens');
-const { unauthorized, forbidden, wrap } = require('../lib/errors');
+const { unauthorized, forbidden, notFound, wrap } = require('../lib/errors');
+
+/**
+ * الأدوار:
+ *  - admin   = المستخدم الرئيسي: يملك فروعه ومنتجاته، ولا يرى فروع غيره.
+ *  - manager = المستخدم الفرعي: مربوط بفرع واحد فقط.
+ */
 
 /** Requires a valid access token and loads the live user row. */
 const authenticate = wrap(async (req, _res, next) => {
@@ -29,37 +35,59 @@ const authenticate = wrap(async (req, _res, next) => {
 /** Restricts a route to the given roles. */
 const requireRole = (...roles) => (req, _res, next) => {
   if (!req.user) return next(unauthorized());
-  if (!roles.includes(req.user.role)) return next(forbidden('ليست لديك صلاحية الدخول إلى هذا القسم'));
+  if (!roles.includes(req.user.role)) return next(forbidden('هذا القسم للمستخدم الرئيسي فقط'));
   next();
 };
 
 const adminOnly = requireRole('admin');
 
+/** هل يستطيع هذا المستخدم العمل على هذا الفرع؟ */
+async function canUseStore(user, storeId) {
+  if (!storeId) return false;
+  if (user.role === 'admin') {
+    return !!(await one('SELECT 1 FROM stores WHERE id = $1 AND owner_id = $2', [storeId, user.id]));
+  }
+  return user.store_id === storeId;
+}
+
+/** يجلب فرعا يملكه المستخدم الرئيسي، أو 404. */
+async function ownedStore(req, storeId) {
+  const store = await one('SELECT * FROM stores WHERE id = $1 AND owner_id = $2', [storeId, req.user.id]);
+  if (!store) throw notFound('الفرع غير موجود');
+  req.storeId = store.id;
+  return store;
+}
+
 /**
- * Resolves which store the request targets and enforces tenancy.
- * - admin: may target any store via :storeId / ?store_id (or all stores when omitted)
- * - manager/staff: locked to their own store, any other value is rejected
- * Sets req.storeId (may be null for an admin looking at everything).
+ * يحدد الفرع المطلوب ويفرض الصلاحيات، ويضع:
+ *  - req.storeId: الفرع (أو null للمستخدم الرئيسي عندما يطلب كل فروعه)
+ *  - req.ownerId: المستخدم الرئيسي صاحب البيانات (للمستخدم الفرعي: صاحب فرعه)
  */
 function scopeStore(options = {}) {
   const { required = true } = options;
-  return (req, _res, next) => {
-    const asked =
-      req.params.storeId || req.params.id_store || req.query.store_id || req.body?.store_id || null;
+  return wrap(async (req, _res, next) => {
+    const asked = req.params.storeId || req.query.store_id || req.body?.store_id || null;
 
     if (req.user.role === 'admin') {
-      if (required && !asked) return next(forbidden('يجب تحديد المحل'));
-      req.storeId = asked || null;
+      req.ownerId = req.user.id;
+      if (!asked) {
+        if (required) throw forbidden('يجب تحديد الفرع');
+        req.storeId = null;
+        return next();
+      }
+      if (!(await canUseStore(req.user, asked))) throw notFound('الفرع غير موجود');
+      req.storeId = asked;
       return next();
     }
 
-    if (!req.user.store_id) return next(forbidden('لا يوجد محل مرتبط بهذا الحساب'));
-    if (asked && asked !== req.user.store_id) {
-      return next(forbidden('هذه البيانات تخص محلا آخر'));
-    }
+    if (!req.user.store_id) throw forbidden('لا يوجد فرع مرتبط بهذا الحساب');
+    if (asked && asked !== req.user.store_id) throw forbidden('هذه البيانات تخص فرعا آخر');
+    const store = await one('SELECT owner_id FROM stores WHERE id = $1', [req.user.store_id]);
+    if (!store) throw forbidden('لا يوجد فرع مرتبط بهذا الحساب');
     req.storeId = req.user.store_id;
+    req.ownerId = store.owner_id;
     next();
-  };
+  });
 }
 
 /** Fire-and-forget audit trail. Never blocks the response. */
@@ -73,4 +101,4 @@ function audit(req, action, entity, entityId, meta) {
   ).catch((e) => console.warn('[audit]', e.message));
 }
 
-module.exports = { authenticate, requireRole, adminOnly, scopeStore, audit };
+module.exports = { authenticate, requireRole, adminOnly, canUseStore, ownedStore, scopeStore, audit };
