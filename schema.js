@@ -1,0 +1,15 @@
+// Idempotent schema, applied on every server start.
+export const SCHEMA = [
+  `create extension if not exists pgcrypto`,
+  `create schema if not exists maarid`,
+  `create table if not exists maarid.main_users(id serial primary key, username text unique not null, password_hash text not null, created_at timestamptz default now())`,
+  `create table if not exists maarid.sub_users(id serial primary key, main_id int not null references maarid.main_users(id) on delete cascade, username text unique not null, password_hash text not null, created_at timestamptz default now())`,
+  `create table if not exists maarid.products(id serial primary key, main_id int not null references maarid.main_users(id) on delete cascade, name text not null, price numeric(14,2) not null default 0, unique(main_id,name))`,
+  `create table if not exists maarid.stock_in(id serial primary key, main_id int not null references maarid.main_users(id) on delete cascade, product_id int not null references maarid.products(id) on delete restrict, qty numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
+  `create table if not exists maarid.transfers(id serial primary key, main_id int not null references maarid.main_users(id) on delete cascade, sub_id int not null references maarid.sub_users(id) on delete cascade, product_id int not null references maarid.products(id) on delete restrict, qty numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
+  `create table if not exists maarid.sales(id serial primary key, sub_id int not null references maarid.sub_users(id) on delete cascade, product_id int not null references maarid.products(id) on delete restrict, qty numeric(14,2) not null, price numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
+  `create table if not exists maarid.expenses(id serial primary key, main_id int references maarid.main_users(id) on delete cascade, sub_id int references maarid.sub_users(id) on delete cascade, name text not null, amount numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
+  `create table if not exists maarid.cash_moves(id serial primary key, sub_id int not null references maarid.sub_users(id) on delete cascade, kind text not null check (kind in ('pay','return')), amount numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
+  `create index if not exists sales_sub_day on maarid.sales(sub_id, day)`,
+  `create index if not exists exp_day on maarid.expenses(main_id, sub_id, day)`,
+];
