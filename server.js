@@ -21,7 +21,17 @@ if (JWT_SECRET.length < 32) {
 }
 
 const db = neon(DATABASE_URL);
-const sql = (text, params = []) => db.query(text, params);
+// Retries only when the connection itself fails (no Postgres error code), never on SQL errors.
+const sql = async (text, params = []) => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await db.query(text, params);
+    } catch (e) {
+      if (e.code || attempt >= 3) throw e;
+      await new Promise((r) => setTimeout(r, 300 * attempt));
+    }
+  }
+};
 const one = async (text, params) => (await sql(text, params))[0] || null;
 
 // ---------- helpers ----------
@@ -515,10 +525,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطأ في الخادم' });
 });
 
-for (const stmt of SCHEMA) await sql(stmt);
+// Startup queries retry, so a brief network drop doesn't crash the server.
+async function startupSql(text, params) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await sql(text, params);
+    } catch (e) {
+      if (attempt >= 5 || e.code) throw e; // SQL errors (with a code) are real problems
+      console.error(`database not reachable, retrying (${attempt})`);
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
+}
+
+for (const stmt of SCHEMA) await startupSql(stmt);
 
 // The admin main user always matches ADMIN_USERNAME / ADMIN_PASSWORD from the environment.
-await sql(
+await startupSql(
   `insert into maarid.main_users(username, password_hash) values ($1, crypt($2, gen_salt('bf')))
    on conflict (username) do update set password_hash = crypt($2, gen_salt('bf'))
    where maarid.main_users.password_hash <> crypt($2, maarid.main_users.password_hash)`,
