@@ -90,13 +90,15 @@ app.post('/auth/login', authLimiter, async (req, res) => {
   const r = role(req.body.role);
   const username = str(req.body.username, 'اسم المستخدم');
   const password = str(req.body.password, 'كلمة السر');
-  const cols = r === 'sub' ? 'id, username, main_id' : 'id, username, id as main_id';
+  const cols = r === 'sub'
+    ? 'id, username, main_id, coalesce(name, username) as name'
+    : 'id, username, id as main_id, username as name';
   const u = await one(
     `select ${cols} from ${TABLE[r]} where username = $1 and password_hash = crypt($2, password_hash)`,
     [username, password]
   );
   if (!u) fail(401, 'اسم المستخدم او كلمة السر خطأ');
-  const user = { role: r, id: u.id, username: u.username, mainId: u.main_id };
+  const user = { role: r, id: u.id, username: u.username, name: u.name, mainId: u.main_id };
   res.json({ token: sign(user), user });
 });
 
@@ -113,7 +115,7 @@ app.post('/auth/register', authLimiter, async (req, res) => {
         `insert into maarid.main_users(username, password_hash) values ($1, crypt($2, gen_salt('bf'))) returning id, username`,
         [username, password]
       );
-      user = { role: 'main', id: u.id, username: u.username, mainId: u.id };
+      user = { role: 'main', id: u.id, username: u.username, name: u.username, mainId: u.id };
     } else {
       const mainName = str(req.body.mainUsername, 'اسم المستخدم الرئيسي');
       const u = await one(
@@ -123,7 +125,7 @@ app.post('/auth/register', authLimiter, async (req, res) => {
         [mainName, username, password]
       );
       if (!u) fail(404, 'المستخدم الرئيسي غير موجود');
-      user = { role: 'sub', id: u.id, username: u.username, mainId: u.main_id };
+      user = { role: 'sub', id: u.id, username: u.username, name: u.username, mainId: u.main_id };
     }
   } catch (e) {
     if (e.code === '23505') fail(409, 'اسم المستخدم موجود من قبل');
@@ -162,32 +164,111 @@ async function requireShowroom(req, requested) {
   return subId;
 }
 
-// ---------- today's numbers ----------
+// ---------- day numbers: sales, cost, profit ----------
+// cost = purchase cost of the goods sold + expenses; profit = sales - cost
+const withProfit = (r) => {
+  const sales = Number(r.sales);
+  const goodsCost = Number(r.goods_cost);
+  const expenses = Number(r.expenses);
+  return { ...r, sales, goods_cost: goodsCost, expenses, cost: goodsCost + expenses, profit: sales - goodsCost - expenses };
+};
+
+// the phone's local date, so "today" matches what the user sees
+const dayOf = (req) => (req.query.day ? date(req.query.day) : today());
+
 app.get('/stats', async (req, res) => {
-  // the phone's local date, so "today" matches what the user sees
-  const d = req.query.day ? date(req.query.day) : today();
+  const d = dayOf(req);
   const subId = await showroomOf(req, req.query.subId);
   if (subId) {
-    return res.json(await one(
+    return res.json(withProfit(await one(
       `select
          (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day=$2) sales,
+         (select coalesce(sum(qty*cost),0) from maarid.sales where sub_id=$1 and day=$2) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day=$2) expenses,
          (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash`,
       [subId, d]
-    ));
+    )));
   }
-  res.json(await one(
+  // admin: every store plus the admin's own expenses
+  res.json(withProfit(await one(
     `select
        (select coalesce(sum(s.qty*s.price),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
          where u.main_id=$1 and s.day=$2) sales,
-       (select coalesce(sum(amount),0) from maarid.expenses where main_id=$1 and day=$2) expenses`,
+       (select coalesce(sum(s.qty*s.cost),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
+         where u.main_id=$1 and s.day=$2) goods_cost,
+       (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
+         where (e.main_id=$1 or u.main_id=$1) and e.day=$2) expenses,
+       (select count(*) from maarid.sub_users where main_id=$1) stores`,
     [req.user.id, d]
-  ));
+  )));
 });
 
-// ---------- showrooms ----------
+// Daily report for the admin: totals plus one row per store.
+app.get('/report', mainOnly, async (req, res) => {
+  const d = dayOf(req);
+  const stores = await sql(
+    `select u.id, coalesce(u.name, u.username) as name,
+       coalesce((select sum(qty*price) from maarid.sales where sub_id=u.id and day=$2),0) sales,
+       coalesce((select sum(qty*cost) from maarid.sales where sub_id=u.id and day=$2),0) goods_cost,
+       coalesce((select sum(amount) from maarid.expenses where sub_id=u.id and day=$2),0) expenses
+     from maarid.sub_users u where u.main_id=$1 order by u.id`,
+    [req.user.id, d]
+  );
+  const admin = await one('select coalesce(sum(amount),0) expenses from maarid.expenses where main_id=$1 and day=$2', [
+    req.user.id, d,
+  ]);
+  const rows = stores.map(withProfit);
+  const sum = (k) => rows.reduce((a, r) => a + r[k], 0);
+  res.json({
+    stores: rows,
+    adminExpenses: Number(admin.expenses),
+    totals: withProfit({
+      sales: sum('sales'),
+      goods_cost: sum('goods_cost'),
+      expenses: sum('expenses') + Number(admin.expenses),
+    }),
+  });
+});
+
+// ---------- showrooms (stores) ----------
 app.get('/showrooms', mainOnly, async (req, res) => {
-  res.json(await sql('select id, username from maarid.sub_users where main_id=$1 order by id', [req.user.id]));
+  res.json(await sql(
+    'select id, username, coalesce(name, username) as name from maarid.sub_users where main_id=$1 order by id',
+    [req.user.id]
+  ));
+});
+// the admin opens a new store with its own login
+app.post('/showrooms', mainOnly, async (req, res) => {
+  const password = str(req.body.password, 'كلمة السر');
+  if (password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
+  try {
+    await sql(
+      `insert into maarid.sub_users(main_id, name, username, password_hash) values ($1, $2, $3, crypt($4, gen_salt('bf')))`,
+      [req.user.id, str(req.body.name, 'اسم المعرض'), str(req.body.username, 'اسم المستخدم'), password]
+    );
+  } catch (e) {
+    if (e.code === '23505') fail(409, 'اسم المستخدم موجود من قبل');
+    throw e;
+  }
+  res.json({ ok: true });
+});
+// rename a store, change its login name, or reset its password (empty password = keep it)
+app.put('/showrooms/:id', mainOnly, async (req, res) => {
+  const password = typeof req.body.password === 'string' ? req.body.password.trim() : '';
+  if (password && password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
+  try {
+    const row = await one(
+      `update maarid.sub_users set name=$1, username=$2,
+         password_hash = case when $3 = '' then password_hash else crypt($3, gen_salt('bf')) end
+       where id=$4 and main_id=$5 returning id`,
+      [str(req.body.name, 'اسم المعرض'), str(req.body.username, 'اسم المستخدم'), password, id(req.params.id), req.user.id]
+    );
+    if (!row) fail(404, 'المعرض غير موجود');
+  } catch (e) {
+    if (e.code === '23505') fail(409, 'اسم المستخدم موجود من قبل');
+    throw e;
+  }
+  res.json({ ok: true });
 });
 app.delete('/showrooms/:id', mainOnly, async (req, res) => {
   await sql('delete from maarid.sub_users where id=$1 and main_id=$2', [id(req.params.id), req.user.id]);
@@ -195,18 +276,21 @@ app.delete('/showrooms/:id', mainOnly, async (req, res) => {
 });
 
 // ---------- products ----------
+// price = selling price, cost = purchase price (used for profit)
 app.get('/products', mainOnly, async (req, res) => {
-  res.json(await sql('select id, name, price from maarid.products where main_id=$1 order by name', [req.user.id]));
+  res.json(await sql('select id, name, price, cost from maarid.products where main_id=$1 order by name', [req.user.id]));
 });
 app.post('/products', mainOnly, async (req, res) => {
-  await sql('insert into maarid.products(main_id, name, price) values ($1,$2,$3)', [
-    req.user.id, str(req.body.name, 'اسم المنتج'), nonNegative(req.body.price, 'السعر'),
+  await sql('insert into maarid.products(main_id, name, price, cost) values ($1,$2,$3,$4)', [
+    req.user.id, str(req.body.name, 'اسم المنتج'), nonNegative(req.body.price, 'سعر البيع'),
+    nonNegative(req.body.cost ?? 0, 'سعر الشراء'),
   ]);
   res.json({ ok: true });
 });
 app.put('/products/:id', mainOnly, async (req, res) => {
-  await sql('update maarid.products set name=$1, price=$2 where id=$3 and main_id=$4', [
-    str(req.body.name, 'اسم المنتج'), nonNegative(req.body.price, 'السعر'), id(req.params.id), req.user.id,
+  await sql('update maarid.products set name=$1, price=$2, cost=$3 where id=$4 and main_id=$5', [
+    str(req.body.name, 'اسم المنتج'), nonNegative(req.body.price, 'سعر البيع'),
+    nonNegative(req.body.cost ?? 0, 'سعر الشراء'), id(req.params.id), req.user.id,
   ]);
   res.json({ ok: true });
 });
@@ -223,6 +307,23 @@ app.get('/stock/main', mainOnly, async (req, res) => {
      from maarid.products p
      left join (select product_id, sum(qty) q from maarid.stock_in group by 1) i on i.product_id = p.id
      left join (select product_id, sum(qty) q from maarid.transfers group by 1) t on t.product_id = p.id
+     where p.main_id = $1 order by p.name`,
+    [req.user.id]
+  ));
+});
+
+// total storage: warehouse + all stores, per product
+app.get('/stock/total', mainOnly, async (req, res) => {
+  res.json(await sql(
+    `select p.id, p.name,
+       coalesce(i.q,0) - coalesce(t.q,0) warehouse,
+       coalesce(t.q,0) - coalesce(s.q,0) stores,
+       coalesce(i.q,0) - coalesce(s.q,0) total,
+       (coalesce(i.q,0) - coalesce(s.q,0)) * p.cost value
+     from maarid.products p
+     left join (select product_id, sum(qty) q from maarid.stock_in group by 1) i on i.product_id = p.id
+     left join (select product_id, sum(qty) q from maarid.transfers group by 1) t on t.product_id = p.id
+     left join (select product_id, sum(qty) q from maarid.sales group by 1) s on s.product_id = p.id
      where p.main_id = $1 order by p.name`,
     [req.user.id]
   ));
@@ -272,7 +373,7 @@ app.post('/transfers', mainOnly, async (req, res) => {
 app.get('/transfers', mainOnly, async (req, res) => {
   const subId = await showroomOf(req, req.query.subId);
   res.json(await sql(
-    `select t.id, u.username showroom, p.name product, t.qty, to_char(t.day,'YYYY/MM/DD') as day
+    `select t.id, coalesce(u.name, u.username) showroom, p.name product, t.qty, to_char(t.day,'YYYY/MM/DD') as day
      from maarid.transfers t
      join maarid.products p on p.id = t.product_id
      join maarid.sub_users u on u.id = t.sub_id
@@ -287,8 +388,8 @@ app.get('/sales', async (req, res) => {
   const subId = await showroomOf(req, req.query.subId);
   const [where, owner] = subId ? ['s.sub_id = $1', subId] : ['u.main_id = $1', req.user.id];
   res.json(await sql(
-    `select s.id, s.product_id, p.name product, u.username showroom, s.qty, s.price, s.qty*s.price total,
-       to_char(s.day,'YYYY/MM/DD') as day
+    `select s.id, s.product_id, p.name product, coalesce(u.name, u.username) showroom, s.qty, s.price,
+       s.qty*s.price total, s.qty*(s.price - s.cost) profit, to_char(s.day,'YYYY/MM/DD') as day
      from maarid.sales s
      join maarid.products p on p.id = s.product_id
      join maarid.sub_users u on u.id = s.sub_id
@@ -302,6 +403,9 @@ app.get('/sales', async (req, res) => {
 const STOCK_OK = `(select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1::int and product_id=$2::int)
   - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1::int and product_id=$2::int and id <> $6::int) >= $3::numeric`;
 
+// the product's purchase price, saved on the sale so later price changes don't rewrite past profit
+const PRODUCT_COST = '(select cost from maarid.products where id=$2::int)';
+
 const saleParams = (req, saleId) => [
   req.user.id, id(req.body.productId), positive(req.body.qty, 'الكمية'), nonNegative(req.body.price, 'السعر'),
   date(req.body.day), saleId,
@@ -309,8 +413,9 @@ const saleParams = (req, saleId) => [
 
 app.post('/sales', subOnly, async (req, res) => {
   const row = await one(
-    `insert into maarid.sales(sub_id, product_id, qty, price, day)
-     select $1::int, $2::int, $3::numeric, $4::numeric, $5::date where ${STOCK_OK} returning id`,
+    `insert into maarid.sales(sub_id, product_id, qty, price, day, cost)
+     select $1::int, $2::int, $3::numeric, $4::numeric, $5::date, ${PRODUCT_COST}
+     where ${STOCK_OK} returning id`,
     saleParams(req, 0)
   );
   if (!row) fail(400, 'الكمية غير متوفرة');
@@ -318,7 +423,8 @@ app.post('/sales', subOnly, async (req, res) => {
 });
 app.put('/sales/:id', subOnly, async (req, res) => {
   const row = await one(
-    `update maarid.sales set product_id=$2::int, qty=$3::numeric, price=$4::numeric, day=$5::date
+    `update maarid.sales set product_id=$2::int, qty=$3::numeric, price=$4::numeric, day=$5::date,
+       cost=${PRODUCT_COST}
      where id=$6::int and sub_id=$1::int and ${STOCK_OK} returning id`,
     saleParams(req, id(req.params.id))
   );
