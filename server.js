@@ -41,6 +41,12 @@ const PG_MESSAGES = {
   '23001': 'لا يمكن الحذف لوجود عمليات مرتبطة',
 };
 
+// Arabic-Indic digits (٠١٢…/۰۱۲…) typed on an Arabic keyboard count as 0-9
+const latinDigits = (s) =>
+  s.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x6f0));
+// usernames and passwords: trimmed, digits normalized
+const cred = (v, label) => latinDigits(str(v, label));
+
 const str = (v, label) => {
   const s = typeof v === 'string' ? v.trim() : '';
   if (!s || s.length > 100) fail(400, `${label} غير صحيح`);
@@ -88,8 +94,8 @@ app.get('/auth/config', (req, res) => res.json({ mainSignup: MAIN_SIGNUP }));
 
 app.post('/auth/login', authLimiter, async (req, res) => {
   const r = role(req.body.role);
-  const username = str(req.body.username, 'اسم المستخدم');
-  const password = str(req.body.password, 'كلمة السر');
+  const username = cred(req.body.username, 'اسم المستخدم');
+  const password = cred(req.body.password, 'كلمة السر');
   const cols = r === 'sub'
     ? 'id, username, main_id, coalesce(name, username) as name'
     : 'id, username, id as main_id, username as name';
@@ -97,15 +103,24 @@ app.post('/auth/login', authLimiter, async (req, res) => {
     `select ${cols} from ${TABLE[r]} where username = $1 and password_hash = crypt($2, password_hash)`,
     [username, password]
   );
-  if (!u) fail(401, 'اسم المستخدم او كلمة السر خطأ');
+  if (!u) {
+    // right account, wrong door: say which login screen to use
+    const other = r === 'main' ? 'sub' : 'main';
+    const elsewhere = await one(
+      `select 1 from ${TABLE[other]} where username = $1 and password_hash = crypt($2, password_hash)`,
+      [username, password]
+    );
+    if (elsewhere) fail(401, other === 'main' ? 'هذا حساب المستخدم الرئيسي، ادخل من "مستخدم رئيسي"' : 'هذا حساب متجر، ادخل من "مستخدم فرعي"');
+    fail(401, 'اسم المستخدم او كلمة السر خطأ');
+  }
   const user = { role: r, id: u.id, username: u.username, name: u.name, mainId: u.main_id };
   res.json({ token: sign(user), user });
 });
 
 app.post('/auth/register', authLimiter, async (req, res) => {
   const r = role(req.body.role);
-  const username = str(req.body.username, 'اسم المستخدم');
-  const password = str(req.body.password, 'كلمة السر');
+  const username = cred(req.body.username, 'اسم المستخدم');
+  const password = cred(req.body.password, 'كلمة السر');
   if (password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
   let user;
   try {
@@ -117,7 +132,7 @@ app.post('/auth/register', authLimiter, async (req, res) => {
       );
       user = { role: 'main', id: u.id, username: u.username, name: u.username, mainId: u.id };
     } else {
-      const mainName = str(req.body.mainUsername, 'اسم المستخدم الرئيسي');
+      const mainName = cred(req.body.mainUsername, 'اسم المستخدم الرئيسي');
       const u = await one(
         `insert into maarid.sub_users(main_id, username, password_hash)
          select id, $2, crypt($3, gen_salt('bf')) from maarid.main_users where username = $1
@@ -155,12 +170,12 @@ async function showroomOf(req, requested) {
   const subId = optId(requested);
   if (subId === null) return null;
   const row = await one('select id from maarid.sub_users where id=$1 and main_id=$2', [subId, req.user.id]);
-  if (!row) fail(404, 'المعرض غير موجود');
+  if (!row) fail(404, 'المتجر غير موجود');
   return row.id;
 }
 async function requireShowroom(req, requested) {
   const subId = await showroomOf(req, requested);
-  if (!subId) fail(400, 'اختر المعرض');
+  if (!subId) fail(400, 'اختر المتجر');
   return subId;
 }
 
@@ -239,12 +254,12 @@ app.get('/showrooms', mainOnly, async (req, res) => {
 });
 // the admin opens a new store with its own login
 app.post('/showrooms', mainOnly, async (req, res) => {
-  const password = str(req.body.password, 'كلمة السر');
+  const password = cred(req.body.password, 'كلمة السر');
   if (password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
   try {
     await sql(
       `insert into maarid.sub_users(main_id, name, username, password_hash) values ($1, $2, $3, crypt($4, gen_salt('bf')))`,
-      [req.user.id, str(req.body.name, 'اسم المعرض'), str(req.body.username, 'اسم المستخدم'), password]
+      [req.user.id, str(req.body.name, 'اسم المتجر'), cred(req.body.username, 'اسم المستخدم'), password]
     );
   } catch (e) {
     if (e.code === '23505') fail(409, 'اسم المستخدم موجود من قبل');
@@ -254,16 +269,16 @@ app.post('/showrooms', mainOnly, async (req, res) => {
 });
 // rename a store, change its login name, or reset its password (empty password = keep it)
 app.put('/showrooms/:id', mainOnly, async (req, res) => {
-  const password = typeof req.body.password === 'string' ? req.body.password.trim() : '';
+  const password = typeof req.body.password === 'string' ? latinDigits(req.body.password.trim()) : '';
   if (password && password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
   try {
     const row = await one(
       `update maarid.sub_users set name=$1, username=$2,
          password_hash = case when $3 = '' then password_hash else crypt($3, gen_salt('bf')) end
        where id=$4 and main_id=$5 returning id`,
-      [str(req.body.name, 'اسم المعرض'), str(req.body.username, 'اسم المستخدم'), password, id(req.params.id), req.user.id]
+      [str(req.body.name, 'اسم المتجر'), cred(req.body.username, 'اسم المستخدم'), password, id(req.params.id), req.user.id]
     );
-    if (!row) fail(404, 'المعرض غير موجود');
+    if (!row) fail(404, 'المتجر غير موجود');
   } catch (e) {
     if (e.code === '23505') fail(409, 'اسم المستخدم موجود من قبل');
     throw e;
@@ -507,7 +522,7 @@ await sql(
   `insert into maarid.main_users(username, password_hash) values ($1, crypt($2, gen_salt('bf')))
    on conflict (username) do update set password_hash = crypt($2, gen_salt('bf'))
    where maarid.main_users.password_hash <> crypt($2, maarid.main_users.password_hash)`,
-  [ADMIN_USERNAME, ADMIN_PASSWORD]
+  [latinDigits(ADMIN_USERNAME.trim()), latinDigits(ADMIN_PASSWORD.trim())]
 );
 
 app.listen(PORT, () => console.log(`maarid server on :${PORT}`));
