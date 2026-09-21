@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "index.js",
+  "main": "server.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --env-file=.env --watch index.js"
+    "start": "node server.js",
+    "dev": "node --env-file=.env --watch server.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
