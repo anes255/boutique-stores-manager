@@ -210,7 +210,11 @@ app.get('/stats', async (req, res) => {
          (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day=$2) sales,
          (select coalesce(sum(qty*cost),0) from maarid.sales where sub_id=$1 and day=$2) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day=$2) expenses,
-         (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash`,
+         (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash,
+         -- units in this store's stock: received + added/corrected - sold
+         (select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1)
+           + (select coalesce(sum(qty),0) from maarid.store_adjust where sub_id=$1)
+           - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1) units`,
       [subId, d]
     )));
   }
@@ -223,7 +227,11 @@ app.get('/stats', async (req, res) => {
          where u.main_id=$1 and s.day=$2) goods_cost,
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
          where (e.main_id=$1 or u.main_id=$1) and e.day=$2) expenses,
-       (select count(*) from maarid.sub_users where main_id=$1) stores`,
+       (select count(*) from maarid.sub_users where main_id=$1) stores,
+       -- all units: warehouse + every store (stock added/corrected + added in stores - sold)
+       (select coalesce(sum(i.qty),0) from maarid.stock_in i join maarid.products p on p.id=i.product_id where p.main_id=$1)
+         + (select coalesce(sum(a.qty),0) from maarid.store_adjust a join maarid.products p on p.id=a.product_id where p.main_id=$1)
+         - (select coalesce(sum(s.qty),0) from maarid.sales s join maarid.products p on p.id=s.product_id where p.main_id=$1) units`,
     [req.user.id, d]
   )));
 });
