@@ -142,7 +142,8 @@ app.post('/auth/register', authLimiter, async (req, res) => {
       );
       user = { role: 'main', id: u.id, username: u.username, name: u.username, mainId: u.id };
     } else {
-      const mainName = cred(req.body.mainUsername, 'اسم المستخدم الرئيسي');
+      // a new store belongs to the admin from env
+      const mainName = latinDigits(ADMIN_USERNAME.trim());
       const u = await one(
         `insert into maarid.sub_users(main_id, username, password_hash)
          select id, $2, crypt($3, gen_salt('bf')) from maarid.main_users where username = $1
