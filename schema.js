@@ -17,4 +17,8 @@ export const SCHEMA = [
   // purchase price per product, and the purchase price saved on each sale, for profit
   `alter table maarid.products add column if not exists cost numeric(14,2) not null default 0`,
   `alter table maarid.sales add column if not exists cost numeric(14,2) not null default 0`,
+  // 'in' = stock added, 'adjust' = correction from editing the warehouse quantity
+  `alter table maarid.stock_in add column if not exists kind text not null default 'in'`,
+  // quantities added or corrected directly in a store's stock (a correction can be negative)
+  `create table if not exists maarid.store_adjust(id serial primary key, sub_id int not null references maarid.sub_users(id) on delete cascade, product_id int not null references maarid.products(id) on delete restrict, qty numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
 ];

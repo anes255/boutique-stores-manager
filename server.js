@@ -337,35 +337,54 @@ app.get('/stock/main', mainOnly, async (req, res) => {
   ));
 });
 
+// warehouse = stock added (and corrections) - goods sent to stores
+const WAREHOUSE_QTY = `(select coalesce(sum(qty),0) from maarid.stock_in where product_id=$2::int)
+  - (select coalesce(sum(qty),0) from maarid.transfers where product_id=$2::int)`;
+// store = goods received + quantities added/corrected in the store - goods sold
+const storeQty = (saleIdParam) => `(select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1::int and product_id=$2::int)
+  + (select coalesce(sum(qty),0) from maarid.store_adjust where sub_id=$1::int and product_id=$2::int)
+  - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1::int and product_id=$2::int${
+    saleIdParam ? ` and id <> ${saleIdParam}::int` : ''
+  })`;
+
 // total storage: warehouse + all stores, per product
 app.get('/stock/total', mainOnly, async (req, res) => {
   res.json(await sql(
     `select p.id, p.name,
        coalesce(i.q,0) - coalesce(t.q,0) warehouse,
-       coalesce(t.q,0) - coalesce(s.q,0) stores,
-       coalesce(i.q,0) - coalesce(s.q,0) total,
-       (coalesce(i.q,0) - coalesce(s.q,0)) * p.cost value
+       coalesce(t.q,0) + coalesce(a.q,0) - coalesce(s.q,0) stores,
+       coalesce(i.q,0) + coalesce(a.q,0) - coalesce(s.q,0) total,
+       (coalesce(i.q,0) + coalesce(a.q,0) - coalesce(s.q,0)) * p.cost value
      from maarid.products p
      left join (select product_id, sum(qty) q from maarid.stock_in group by 1) i on i.product_id = p.id
      left join (select product_id, sum(qty) q from maarid.transfers group by 1) t on t.product_id = p.id
+     left join (select product_id, sum(qty) q from maarid.store_adjust group by 1) a on a.product_id = p.id
      left join (select product_id, sum(qty) q from maarid.sales group by 1) s on s.product_id = p.id
      where p.main_id = $1 order by p.name`,
     [req.user.id]
   ));
 });
 
-// showroom = goods received - goods sold
 app.get('/stock/showroom', async (req, res) => {
   const subId = await requireShowroom(req, req.query.subId);
   res.json(await sql(
-    `select p.id, p.name, p.price, coalesce(t.q,0) - coalesce(s.q,0) qty
+    `select p.id, p.name, p.price, coalesce(t.q,0) + coalesce(a.q,0) - coalesce(s.q,0) qty
      from maarid.products p
      left join (select product_id, sum(qty) q from maarid.transfers where sub_id=$1 group by 1) t on t.product_id = p.id
+     left join (select product_id, sum(qty) q from maarid.store_adjust where sub_id=$1 group by 1) a on a.product_id = p.id
      left join (select product_id, sum(qty) q from maarid.sales where sub_id=$1 group by 1) s on s.product_id = p.id
      where p.main_id = $2 order by p.name`,
     [subId, req.user.mainId]
   ));
 });
+
+// ---- add / edit quantities ----
+// "add" adds to what is there; "set" makes the quantity exactly the number given (saved as a correction)
+const newQty = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 1e10) fail(400, 'الكمية غير صحيحة');
+  return n;
+};
 
 app.post('/stock/in', mainOnly, async (req, res) => {
   const row = await one(
@@ -373,6 +392,44 @@ app.post('/stock/in', mainOnly, async (req, res) => {
      select $1::int, id, $3::numeric, $4::date from maarid.products where id=$2::int and main_id=$1::int
      returning id`,
     [req.user.id, id(req.body.productId), positive(req.body.qty, 'الكمية'), date(req.body.day)]
+  );
+  if (!row) fail(404, 'المنتج غير موجود');
+  res.json({ ok: true });
+});
+
+// warehouse: set the exact quantity
+app.post('/stock/main/set', mainOnly, async (req, res) => {
+  const row = await one(
+    `insert into maarid.stock_in(main_id, product_id, qty, day, kind)
+     select $1::int, p.id, $3::numeric - (${WAREHOUSE_QTY}), $4::date, 'adjust'
+     from maarid.products p where p.id=$2::int and p.main_id=$1::int
+     returning id`,
+    [req.user.id, id(req.body.productId), newQty(req.body.qty), date(req.body.day)]
+  );
+  if (!row) fail(404, 'المنتج غير موجود');
+  res.json({ ok: true });
+});
+
+// a store's own stock: add to it, or set the exact quantity (the store itself, or the admin for its stores)
+const ownProduct = `exists (select 1 from maarid.products where id=$2::int and main_id=$5::int)`;
+
+app.post('/stock/showroom/add', async (req, res) => {
+  const subId = await requireShowroom(req, req.body.subId);
+  const row = await one(
+    `insert into maarid.store_adjust(sub_id, product_id, qty, day)
+     select $1::int, $2::int, $3::numeric, $4::date where ${ownProduct} returning id`,
+    [subId, id(req.body.productId), positive(req.body.qty, 'الكمية'), date(req.body.day), req.user.mainId]
+  );
+  if (!row) fail(404, 'المنتج غير موجود');
+  res.json({ ok: true });
+});
+
+app.post('/stock/showroom/set', async (req, res) => {
+  const subId = await requireShowroom(req, req.body.subId);
+  const row = await one(
+    `insert into maarid.store_adjust(sub_id, product_id, qty, day)
+     select $1::int, $2::int, $3::numeric - (${storeQty()}), $4::date where ${ownProduct} returning id`,
+    [subId, id(req.body.productId), newQty(req.body.qty), date(req.body.day), req.user.mainId]
   );
   if (!row) fail(404, 'المنتج غير موجود');
   res.json({ ok: true });
@@ -424,9 +481,8 @@ app.get('/sales', async (req, res) => {
   ));
 });
 
-// available = received - sold (excluding the sale being edited)
-const STOCK_OK = `(select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1::int and product_id=$2::int)
-  - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1::int and product_id=$2::int and id <> $6::int) >= $3::numeric`;
+// available in the store (not counting the sale being edited) must cover the quantity sold
+const STOCK_OK = `${storeQty('$6')} >= $3::numeric`;
 
 // the product's purchase price, saved on the sale so later price changes don't rewrite past profit
 const PRODUCT_COST = '(select cost from maarid.products where id=$2::int)';
