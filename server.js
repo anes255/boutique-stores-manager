@@ -496,33 +496,40 @@ const STOCK_OK = `${storeQty('$6')} >= $3::numeric`;
 // the product's purchase price, saved on the sale so later price changes don't rewrite past profit
 const PRODUCT_COST = '(select cost from maarid.products where id=$2::int)';
 
-const saleParams = (req, saleId) => [
-  req.user.id, id(req.body.productId), positive(req.body.qty, 'الكمية'), nonNegative(req.body.price, 'السعر'),
+// A store writes its own sales; the admin writes a store's sales by passing that store's subId.
+const saleParams = (subId, req, saleId) => [
+  subId, id(req.body.productId), positive(req.body.qty, 'الكمية'), nonNegative(req.body.price, 'السعر'),
   date(req.body.day), saleId,
 ];
 
-app.post('/sales', subOnly, async (req, res) => {
+app.post('/sales', async (req, res) => {
+  const subId = await requireShowroom(req, req.body.subId);
   const row = await one(
     `insert into maarid.sales(sub_id, product_id, qty, price, day, cost)
      select $1::int, $2::int, $3::numeric, $4::numeric, $5::date, ${PRODUCT_COST}
      where ${STOCK_OK} returning id`,
-    saleParams(req, 0)
+    saleParams(subId, req, 0)
   );
   if (!row) fail(400, 'الكمية غير متوفرة');
   res.json({ ok: true });
 });
-app.put('/sales/:id', subOnly, async (req, res) => {
+app.put('/sales/:id', async (req, res) => {
+  const subId = await requireShowroom(req, req.body.subId);
   const row = await one(
     `update maarid.sales set product_id=$2::int, qty=$3::numeric, price=$4::numeric, day=$5::date,
        cost=${PRODUCT_COST}
      where id=$6::int and sub_id=$1::int and ${STOCK_OK} returning id`,
-    saleParams(req, id(req.params.id))
+    saleParams(subId, req, id(req.params.id))
   );
   if (!row) fail(400, 'الكمية غير متوفرة');
   res.json({ ok: true });
 });
-app.delete('/sales/:id', subOnly, async (req, res) => {
-  await sql('delete from maarid.sales where id=$1 and sub_id=$2', [id(req.params.id), req.user.id]);
+app.delete('/sales/:id', async (req, res) => {
+  const owner = req.user.role === 'sub' ? 'id = $2::int' : 'main_id = $2::int';
+  await sql(
+    `delete from maarid.sales where id=$1 and sub_id in (select id from maarid.sub_users where ${owner})`,
+    [id(req.params.id), req.user.id]
+  );
   res.json({ ok: true });
 });
 
@@ -537,24 +544,33 @@ app.get('/expenses', async (req, res) => {
     [owner, date(req.query.from), date(req.query.to)]
   ));
 });
-const ownCol = (req) => (req.user.role === 'sub' ? 'sub_id' : 'main_id');
+// Expenses the caller may change: a store its own; the admin its own and those of its stores.
+const editableExpense = (req) =>
+  req.user.role === 'sub'
+    ? 'sub_id = $U::int'
+    : '(main_id = $U::int or sub_id in (select id from maarid.sub_users where main_id = $U::int))';
+
 app.post('/expenses', async (req, res) => {
-  const isSub = req.user.role === 'sub';
+  // a store adds its own; the admin adds its own, or a store's when subId is given
+  const subId = await showroomOf(req, req.body.subId);
   await sql('insert into maarid.expenses(main_id, sub_id, name, amount, day) values ($1,$2,$3,$4,$5)', [
-    isSub ? null : req.user.id, isSub ? req.user.id : null,
+    subId ? null : req.user.id, subId,
     str(req.body.name, 'اسم المصروف'), positive(req.body.amount, 'القيمة'), date(req.body.day),
   ]);
   res.json({ ok: true });
 });
 app.put('/expenses/:id', async (req, res) => {
-  await sql(`update maarid.expenses set name=$1, amount=$2, day=$3 where id=$4 and ${ownCol(req)}=$5`, [
-    str(req.body.name, 'اسم المصروف'), positive(req.body.amount, 'القيمة'), date(req.body.day),
-    id(req.params.id), req.user.id,
-  ]);
+  await sql(
+    `update maarid.expenses set name=$1, amount=$2, day=$3 where id=$4 and ${editableExpense(req).replaceAll('$U', '$5')}`,
+    [str(req.body.name, 'اسم المصروف'), positive(req.body.amount, 'القيمة'), date(req.body.day),
+      id(req.params.id), req.user.id]
+  );
   res.json({ ok: true });
 });
 app.delete('/expenses/:id', async (req, res) => {
-  await sql(`delete from maarid.expenses where id=$1 and ${ownCol(req)}=$2`, [id(req.params.id), req.user.id]);
+  await sql(`delete from maarid.expenses where id=$1 and ${editableExpense(req).replaceAll('$U', '$2')}`, [
+    id(req.params.id), req.user.id,
+  ]);
   res.json({ ok: true });
 });
 
