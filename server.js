@@ -77,7 +77,14 @@ const id = (v) => {
 const optId = (v) => (v === undefined || v === null || v === '' ? null : id(v));
 const date = (v) => {
   if (typeof v !== 'string' || !/^\d{4}[/-]\d{2}[/-]\d{2}$/.test(v)) fail(400, 'التاريخ غير صحيح');
-  return v.replace(/\//g, '-');
+  const iso = v.replace(/\//g, '-');
+  const [y, m, d] = iso.split('-').map(Number);
+  const asDate = new Date(Date.UTC(y, m - 1, d));
+  // catches impossible dates like 2026-13-01 or 2026-02-31
+  if (asDate.getUTCFullYear() !== y || asDate.getUTCMonth() !== m - 1 || asDate.getUTCDate() !== d) {
+    fail(400, 'التاريخ غير صحيح');
+  }
+  return iso;
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -199,66 +206,71 @@ const withProfit = (r) => {
   return { ...r, sales, goods_cost: goodsCost, expenses, cost: goodsCost + expenses, profit: sales - goodsCost - expenses };
 };
 
-// the phone's local date, so "today" matches what the user sees
-const dayOf = (req) => (req.query.day ? date(req.query.day) : today());
+// One day (?day=) or a period (?from=&to=); the phone sends its own local dates.
+const rangeOf = (req) => {
+  const from = req.query.from ? date(req.query.from) : req.query.day ? date(req.query.day) : today();
+  const to = req.query.to ? date(req.query.to) : from;
+  return [from, to];
+};
 
 app.get('/stats', async (req, res) => {
-  const d = dayOf(req);
+  const [from, to] = rangeOf(req);
   const subId = await showroomOf(req, req.query.subId);
   if (subId) {
     return res.json(withProfit(await one(
       `select
-         (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day=$2) sales,
-         (select count(*) from maarid.sales where sub_id=$1 and day=$2) sales_count,
+         (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day between $2 and $3) sales,
+         (select count(*) from maarid.sales where sub_id=$1 and day between $2 and $3) sales_count,
          (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
-            join maarid.products p on p.id = s.product_id where s.sub_id=$1 and s.day=$2) goods_cost,
-         (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day=$2) expenses,
+            join maarid.products p on p.id = s.product_id where s.sub_id=$1 and s.day between $2 and $3) goods_cost,
+         (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day between $2 and $3) expenses,
          (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash,
          -- units in this store's stock: received + added/corrected - sold
          (select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1)
            + (select coalesce(sum(qty),0) from maarid.store_adjust where sub_id=$1)
            - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1) units`,
-      [subId, d]
+      [subId, from, to]
     )));
   }
   // admin: every store plus the admin's own expenses
   res.json(withProfit(await one(
     `select
        (select coalesce(sum(s.qty*s.price),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
-         where u.main_id=$1 and s.day=$2) sales,
+         where u.main_id=$1 and s.day between $2 and $3) sales,
        (select count(*) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
-         where u.main_id=$1 and s.day=$2) sales_count,
+         where u.main_id=$1 and s.day between $2 and $3) sales_count,
        (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
           join maarid.sub_users u on u.id=s.sub_id join maarid.products p on p.id=s.product_id
-          where u.main_id=$1 and s.day=$2) goods_cost,
+          where u.main_id=$1 and s.day between $2 and $3) goods_cost,
        (select coalesce(sum(case when c.kind='pay' then c.amount else -c.amount end),0)
           from maarid.cash_moves c join maarid.sub_users u on u.id=c.sub_id where u.main_id=$1) cash,
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
-         where (e.main_id=$1 or u.main_id=$1) and e.day=$2) expenses,
+         where (e.main_id=$1 or u.main_id=$1) and e.day between $2 and $3) expenses,
        (select count(*) from maarid.sub_users where main_id=$1) stores,
        -- all units: warehouse + every store (stock added/corrected + added in stores - sold)
        (select coalesce(sum(i.qty),0) from maarid.stock_in i join maarid.products p on p.id=i.product_id where p.main_id=$1)
          + (select coalesce(sum(a.qty),0) from maarid.store_adjust a join maarid.products p on p.id=a.product_id where p.main_id=$1)
          - (select coalesce(sum(s.qty),0) from maarid.sales s join maarid.products p on p.id=s.product_id where p.main_id=$1) units`,
-    [req.user.id, d]
+    [req.user.id, from, to]
   )));
 });
 
 // Daily report for the admin: totals plus one row per store.
 app.get('/report', mainOnly, async (req, res) => {
-  const d = dayOf(req);
+  const [from, to] = rangeOf(req);
   const stores = await sql(
     `select u.id, coalesce(u.name, u.username) as name,
-       coalesce((select sum(qty*price) from maarid.sales where sub_id=u.id and day=$2),0) sales,
+       coalesce((select sum(qty*price) from maarid.sales where sub_id=u.id and day between $2 and $3),0) sales,
        coalesce((select sum(s.qty * ${SALE_COST}) from maarid.sales s
-         join maarid.products p on p.id = s.product_id where s.sub_id=u.id and s.day=$2),0) goods_cost,
-       coalesce((select sum(amount) from maarid.expenses where sub_id=u.id and day=$2),0) expenses
+         join maarid.products p on p.id = s.product_id where s.sub_id=u.id and s.day between $2 and $3),0) goods_cost,
+       coalesce((select sum(amount) from maarid.expenses where sub_id=u.id and day between $2 and $3),0) expenses
      from maarid.sub_users u where u.main_id=$1 order by u.id`,
-    [req.user.id, d]
+    [req.user.id, from, to]
   );
-  const admin = await one('select coalesce(sum(amount),0) expenses from maarid.expenses where main_id=$1 and day=$2', [
-    req.user.id, d,
-  ]);
+  const admin = await one(
+    'select coalesce(sum(amount),0) expenses from maarid.expenses where main_id=$1 and day between $2 and $3',
+    [req.user.id, from, to]
+  );
   const rows = stores.map(withProfit);
   const sum = (k) => rows.reduce((a, r) => a + r[k], 0);
   res.json({
