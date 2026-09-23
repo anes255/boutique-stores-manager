@@ -188,6 +188,9 @@ async function requireShowroom(req, requested) {
 }
 
 // ---------- day numbers: sales, cost, profit ----------
+// The purchase cost of a sale: what was saved with it, or the product's price when that was never set.
+const SALE_COST = 'coalesce(nullif(s.cost, 0), p.cost)';
+
 // cost = purchase cost of the goods sold + expenses; profit = sales - cost
 const withProfit = (r) => {
   const sales = Number(r.sales);
@@ -207,7 +210,8 @@ app.get('/stats', async (req, res) => {
       `select
          (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day=$2) sales,
          (select count(*) from maarid.sales where sub_id=$1 and day=$2) sales_count,
-         (select coalesce(sum(qty*cost),0) from maarid.sales where sub_id=$1 and day=$2) goods_cost,
+         (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
+            join maarid.products p on p.id = s.product_id where s.sub_id=$1 and s.day=$2) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day=$2) expenses,
          (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash,
          -- units in this store's stock: received + added/corrected - sold
@@ -224,8 +228,9 @@ app.get('/stats', async (req, res) => {
          where u.main_id=$1 and s.day=$2) sales,
        (select count(*) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
          where u.main_id=$1 and s.day=$2) sales_count,
-       (select coalesce(sum(s.qty*s.cost),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
-         where u.main_id=$1 and s.day=$2) goods_cost,
+       (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
+          join maarid.sub_users u on u.id=s.sub_id join maarid.products p on p.id=s.product_id
+          where u.main_id=$1 and s.day=$2) goods_cost,
        (select coalesce(sum(case when c.kind='pay' then c.amount else -c.amount end),0)
           from maarid.cash_moves c join maarid.sub_users u on u.id=c.sub_id where u.main_id=$1) cash,
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
@@ -245,7 +250,8 @@ app.get('/report', mainOnly, async (req, res) => {
   const stores = await sql(
     `select u.id, coalesce(u.name, u.username) as name,
        coalesce((select sum(qty*price) from maarid.sales where sub_id=u.id and day=$2),0) sales,
-       coalesce((select sum(qty*cost) from maarid.sales where sub_id=u.id and day=$2),0) goods_cost,
+       coalesce((select sum(s.qty * ${SALE_COST}) from maarid.sales s
+         join maarid.products p on p.id = s.product_id where s.sub_id=u.id and s.day=$2),0) goods_cost,
        coalesce((select sum(amount) from maarid.expenses where sub_id=u.id and day=$2),0) expenses
      from maarid.sub_users u where u.main_id=$1 order by u.id`,
     [req.user.id, d]
@@ -482,7 +488,7 @@ app.get('/sales', async (req, res) => {
   const [where, owner] = subId ? ['s.sub_id = $1', subId] : ['u.main_id = $1', req.user.id];
   res.json(await sql(
     `select s.id, s.product_id, p.name product, coalesce(u.name, u.username) showroom, s.qty, s.price,
-       s.qty*s.price total, s.qty*(s.price - s.cost) profit, to_char(s.day,'YYYY/MM/DD') as day
+       s.qty*s.price total, s.qty*(s.price - ${SALE_COST}) profit, to_char(s.day,'YYYY/MM/DD') as day
      from maarid.sales s
      join maarid.products p on p.id = s.product_id
      join maarid.sub_users u on u.id = s.sub_id
