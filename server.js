@@ -591,15 +591,32 @@ app.get('/cash', async (req, res) => {
     [subId]
   ));
 });
-app.post('/cash', subOnly, async (req, res) => {
-  const kind = req.body.kind === 'pay' || req.body.kind === 'return' ? req.body.kind : fail(400, 'نوع العملية غير صحيح');
+// A store writes its own cash moves; the admin writes those of its stores.
+const cashKind = (v) => (v === 'pay' || v === 'return' ? v : fail(400, 'نوع العملية غير صحيح'));
+// rows the caller may change; `p` is the placeholder holding the caller's id
+const ownedStore = (req, p) => (req.user.role === 'sub' ? `id = ${p}::int` : `main_id = ${p}::int`);
+
+app.post('/cash', async (req, res) => {
+  const subId = await requireShowroom(req, req.body.subId);
   await sql('insert into maarid.cash_moves(sub_id, kind, amount, day) values ($1,$2,$3,$4)', [
-    req.user.id, kind, positive(req.body.amount, 'المبلغ'), date(req.body.day),
+    subId, cashKind(req.body.kind), positive(req.body.amount, 'المبلغ'), date(req.body.day),
   ]);
   res.json({ ok: true });
 });
-app.delete('/cash/:id', subOnly, async (req, res) => {
-  await sql('delete from maarid.cash_moves where id=$1 and sub_id=$2', [id(req.params.id), req.user.id]);
+app.put('/cash/:id', async (req, res) => {
+  const row = await one(
+    `update maarid.cash_moves set kind=$1, amount=$2, day=$3
+     where id=$4 and sub_id in (select id from maarid.sub_users where ${ownedStore(req, '$5')}) returning id`,
+    [cashKind(req.body.kind), positive(req.body.amount, 'المبلغ'), date(req.body.day), id(req.params.id), req.user.id]
+  );
+  if (!row) fail(404, 'العملية غير موجودة');
+  res.json({ ok: true });
+});
+app.delete('/cash/:id', async (req, res) => {
+  await sql(
+    `delete from maarid.cash_moves where id=$1 and sub_id in (select id from maarid.sub_users where ${ownedStore(req, '$2')})`,
+    [id(req.params.id), req.user.id]
+  );
   res.json({ ok: true });
 });
 
