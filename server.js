@@ -6,8 +6,8 @@ import { neon } from '@neondatabase/serverless';
 import { SCHEMA } from './schema.js';
 
 const { DATABASE_URL, JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD, PORT = 3000 } = process.env;
-// New main users may sign up from the app only when this is "true"; otherwise the admin from env is the main user.
-const MAIN_SIGNUP = process.env.ALLOW_MAIN_SIGNUP === 'true';
+// Admins may sign up from the app unless this is set to "false"; each admin gets its own stores.
+const MAIN_SIGNUP = process.env.ALLOW_MAIN_SIGNUP !== 'false';
 
 for (const [name, value] of Object.entries({ DATABASE_URL, JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD })) {
   if (!value) {
@@ -209,6 +209,7 @@ app.get('/stats', async (req, res) => {
     return res.json(withProfit(await one(
       `select
          (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day=$2) sales,
+         (select count(*) from maarid.sales where sub_id=$1 and day=$2) sales_count,
          (select coalesce(sum(qty*cost),0) from maarid.sales where sub_id=$1 and day=$2) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day=$2) expenses,
          (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash,
@@ -224,8 +225,12 @@ app.get('/stats', async (req, res) => {
     `select
        (select coalesce(sum(s.qty*s.price),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
          where u.main_id=$1 and s.day=$2) sales,
+       (select count(*) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
+         where u.main_id=$1 and s.day=$2) sales_count,
        (select coalesce(sum(s.qty*s.cost),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
          where u.main_id=$1 and s.day=$2) goods_cost,
+       (select coalesce(sum(case when c.kind='pay' then c.amount else -c.amount end),0)
+          from maarid.cash_moves c join maarid.sub_users u on u.id=c.sub_id where u.main_id=$1) cash,
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
          where (e.main_id=$1 or u.main_id=$1) and e.day=$2) expenses,
        (select count(*) from maarid.sub_users where main_id=$1) stores,
