@@ -6,9 +6,6 @@ import { neon } from '@neondatabase/serverless';
 import { SCHEMA } from './schema.js';
 
 const { DATABASE_URL, JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD, PORT = 3000 } = process.env;
-// Admins may sign up from the app unless this is set to "false"; each admin gets its own stores.
-const MAIN_SIGNUP = process.env.ALLOW_MAIN_SIGNUP !== 'false';
-
 for (const [name, value] of Object.entries({ DATABASE_URL, JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD })) {
   if (!value) {
     console.error(`${name} must be set`);
@@ -100,7 +97,8 @@ const sign = (user) => jwt.sign(user, JWT_SECRET, { expiresIn: '30d' });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
   message: { error: 'محاولات كثيرة، حاول لاحقا' } });
 
-app.get('/auth/config', (req, res) => res.json({ mainSignup: MAIN_SIGNUP }));
+// anyone may create an admin account; each admin gets its own stores
+app.get('/auth/config', (req, res) => res.json({ mainSignup: true }));
 
 app.post('/auth/login', authLimiter, async (req, res) => {
   const r = role(req.body.role);
@@ -135,7 +133,6 @@ app.post('/auth/register', authLimiter, async (req, res) => {
   let user;
   try {
     if (r === 'main') {
-      if (!MAIN_SIGNUP) fail(403, 'انشاء مستخدم رئيسي غير مسموح');
       const u = await one(
         `insert into maarid.main_users(username, password_hash) values ($1, crypt($2, gen_salt('bf'))) returning id, username`,
         [username, password]
