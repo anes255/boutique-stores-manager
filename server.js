@@ -247,6 +247,12 @@ app.get('/stats', async (req, res) => {
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
          where (e.main_id=$1 or u.main_id=$1) and e.day between $2 and $3) expenses,
        (select count(*) from maarid.sub_users where main_id=$1) stores,
+       -- all-time cost: purchase cost of everything sold + every expense
+       (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
+          join maarid.sub_users u on u.id=s.sub_id join maarid.products p on p.id=s.product_id
+          where u.main_id=$1)
+         + (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
+             where e.main_id=$1 or u.main_id=$1) total_cost,
        -- all units: warehouse + every store (stock added/corrected + added in stores - sold)
        (select coalesce(sum(i.qty),0) from maarid.stock_in i join maarid.products p on p.id=i.product_id where p.main_id=$1)
          + (select coalesce(sum(a.qty),0) from maarid.store_adjust a join maarid.products p on p.id=a.product_id where p.main_id=$1)
