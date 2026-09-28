@@ -221,6 +221,7 @@ app.get('/stats', async (req, res) => {
       `select
          (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1 and day between $2 and $3) sales,
          (select count(*) from maarid.sales where sub_id=$1 and day between $2 and $3) sales_count,
+         (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1 and day between $2 and $3) units_sold,
          (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
             join maarid.products p on p.id = s.product_id where s.sub_id=$1 and s.day between $2 and $3) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day between $2 and $3) expenses,
@@ -239,6 +240,8 @@ app.get('/stats', async (req, res) => {
          where u.main_id=$1 and s.day between $2 and $3) sales,
        (select count(*) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
          where u.main_id=$1 and s.day between $2 and $3) sales_count,
+       (select coalesce(sum(s.qty),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
+         where u.main_id=$1 and s.day between $2 and $3) units_sold,
        (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
           join maarid.sub_users u on u.id=s.sub_id join maarid.products p on p.id=s.product_id
           where u.main_id=$1 and s.day between $2 and $3) goods_cost,
