@@ -226,6 +226,11 @@ app.get('/stats', async (req, res) => {
             join maarid.products p on p.id = s.product_id where s.sub_id=$1 and s.day between $2 and $3) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day between $2 and $3) expenses,
          (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash,
+         -- all-time figures behind the box: everything sold, and everything it cost
+         (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1) total_sales,
+         (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
+            join maarid.products p on p.id = s.product_id where s.sub_id=$1)
+           + (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1) total_cost,
          -- units in this store's stock: received + added/corrected - sold
          (select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1)
            + (select coalesce(sum(qty),0) from maarid.store_adjust where sub_id=$1)
@@ -250,6 +255,8 @@ app.get('/stats', async (req, res) => {
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
          where (e.main_id=$1 or u.main_id=$1) and e.day between $2 and $3) expenses,
        (select count(*) from maarid.sub_users where main_id=$1) stores,
+       (select coalesce(sum(s.qty*s.price),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
+         where u.main_id=$1) total_sales,
        -- all-time cost: purchase cost of everything sold + every expense
        (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
           join maarid.sub_users u on u.id=s.sub_id join maarid.products p on p.id=s.product_id
@@ -566,11 +573,14 @@ app.delete('/sales/:id', async (req, res) => {
 // A sub user owns its showroom's expenses; a main user owns its own and can read a showroom's (?subId=).
 app.get('/expenses', async (req, res) => {
   const subId = await showroomOf(req, req.query.subId);
-  const [col, owner] = subId ? ['sub_id', subId] : ['main_id', req.user.id];
+  // one store's expenses, or — for the admin — its own plus those of all its stores
+  const where = subId ? 'e.sub_id = $1' : '(e.main_id = $1 or u.main_id = $1)';
   res.json(await sql(
-    `select id, name, amount, to_char(day,'YYYY/MM/DD') as day from maarid.expenses
-     where ${col} = $1 and day between $2 and $3 order by day, id`,
-    [owner, date(req.query.from), date(req.query.to)]
+    `select e.id, e.name, e.amount, coalesce(u.name, u.username, '') store,
+       to_char(e.day,'YYYY/MM/DD') as day
+     from maarid.expenses e left join maarid.sub_users u on u.id = e.sub_id
+     where ${where} and e.day between $2 and $3 order by e.day, e.id`,
+    [subId || req.user.id, date(req.query.from), date(req.query.to)]
   ));
 });
 // Expenses the caller may change: a store its own; the admin its own and those of its stores.
@@ -607,8 +617,8 @@ app.delete('/expenses/:id', async (req, res) => {
 app.get('/cash', async (req, res) => {
   const subId = await requireShowroom(req, req.query.subId);
   res.json(await sql(
-    `select id, kind, amount, to_char(day,'YYYY/MM/DD') as day from maarid.cash_moves
-     where sub_id=$1 order by day desc, id desc`,
+    `select id, kind, amount, coalesce(note, '') note, to_char(day,'YYYY/MM/DD') as day
+     from maarid.cash_moves where sub_id=$1 order by day desc, id desc`,
     [subId]
   ));
 });
@@ -617,18 +627,21 @@ const cashKind = (v) => (v === 'pay' || v === 'return' ? v : fail(400, 'نوع �
 // rows the caller may change; `p` is the placeholder holding the caller's id
 const ownedStore = (req, p) => (req.user.role === 'sub' ? `id = ${p}::int` : `main_id = ${p}::int`);
 
+const noteOf = (v) => (typeof v === 'string' && v.trim() ? str(v, 'اسم العملية') : null);
+
 app.post('/cash', async (req, res) => {
   const subId = await requireShowroom(req, req.body.subId);
-  await sql('insert into maarid.cash_moves(sub_id, kind, amount, day) values ($1,$2,$3,$4)', [
-    subId, cashKind(req.body.kind), positive(req.body.amount, 'المبلغ'), date(req.body.day),
+  await sql('insert into maarid.cash_moves(sub_id, kind, amount, day, note) values ($1,$2,$3,$4,$5)', [
+    subId, cashKind(req.body.kind), positive(req.body.amount, 'المبلغ'), date(req.body.day), noteOf(req.body.note),
   ]);
   res.json({ ok: true });
 });
 app.put('/cash/:id', async (req, res) => {
   const row = await one(
-    `update maarid.cash_moves set kind=$1, amount=$2, day=$3
+    `update maarid.cash_moves set kind=$1, amount=$2, day=$3, note=$6
      where id=$4 and sub_id in (select id from maarid.sub_users where ${ownedStore(req, '$5')}) returning id`,
-    [cashKind(req.body.kind), positive(req.body.amount, 'المبلغ'), date(req.body.day), id(req.params.id), req.user.id]
+    [cashKind(req.body.kind), positive(req.body.amount, 'المبلغ'), date(req.body.day), id(req.params.id),
+      req.user.id, noteOf(req.body.note)]
   );
   if (!row) fail(404, 'العملية غير موجودة');
   res.json({ ok: true });
