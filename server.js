@@ -210,13 +210,11 @@ app.get('/stats', async (req, res) => {
             join maarid.products p on p.id = s.product_id where s.sub_id=$1 and s.day between $2 and $3) goods_cost,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1 and day between $2 and $3) expenses,
          (select coalesce(sum(case when kind='pay' then amount else -amount end),0) from maarid.cash_moves where sub_id=$1) cash,
-         -- all-time figures behind the box: everything sold, and everything it cost
          (select coalesce(sum(qty*price),0) from maarid.sales where sub_id=$1) total_sales,
          (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1) total_expenses,
          (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
             join maarid.products p on p.id = s.product_id where s.sub_id=$1)
            + (select coalesce(sum(amount),0) from maarid.expenses where sub_id=$1) total_cost,
-         -- units in this store's stock: received + added/corrected - sold
          (select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1)
            + (select coalesce(sum(qty),0) from maarid.store_adjust where sub_id=$1)
            - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1) units`,
@@ -243,13 +241,11 @@ app.get('/stats', async (req, res) => {
          where u.main_id=$1) total_sales,
        (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
          where e.main_id=$1 or u.main_id=$1) total_expenses,
-       -- all-time cost: purchase cost of everything sold + every expense
        (select coalesce(sum(s.qty * ${SALE_COST}),0) from maarid.sales s
           join maarid.sub_users u on u.id=s.sub_id join maarid.products p on p.id=s.product_id
           where u.main_id=$1)
          + (select coalesce(sum(e.amount),0) from maarid.expenses e left join maarid.sub_users u on u.id=e.sub_id
              where e.main_id=$1 or u.main_id=$1) total_cost,
-       -- all units: warehouse + every store (stock added/corrected + added in stores - sold)
        (select coalesce(sum(i.qty),0) from maarid.stock_in i join maarid.products p on p.id=i.product_id where p.main_id=$1)
          + (select coalesce(sum(a.qty),0) from maarid.store_adjust a join maarid.products p on p.id=a.product_id where p.main_id=$1)
          - (select coalesce(sum(s.qty),0) from maarid.sales s join maarid.products p on p.id=s.product_id where p.main_id=$1) units`,
@@ -614,8 +610,8 @@ app.delete('/cash/:id', async (req, res) => {
 });
 
 app.use((req, res) => res.status(404).json({ error: 'غير موجود' }));
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
   if (PG_MESSAGES[err.code]) return res.status(400).json({ error: PG_MESSAGES[err.code] });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'طلب غير صحيح' });
