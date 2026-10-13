@@ -18,7 +18,6 @@ if (JWT_SECRET.length < 32) {
 }
 
 const db = neon(DATABASE_URL);
-// Retries only when the connection itself fails (no Postgres error code), never on SQL errors.
 const sql = async (text, params = []) => {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -31,7 +30,6 @@ const sql = async (text, params = []) => {
 };
 const one = async (text, params) => (await sql(text, params))[0] || null;
 
-// ---------- helpers ----------
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -48,10 +46,8 @@ const PG_MESSAGES = {
   '23001': 'لا يمكن الحذف لوجود عمليات مرتبطة',
 };
 
-// Arabic-Indic digits (٠١٢…/۰۱۲…) typed on an Arabic keyboard count as 0-9
 const latinDigits = (s) =>
   s.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x6f0));
-// usernames and passwords: trimmed, digits normalized
 const cred = (v, label) => latinDigits(str(v, label));
 
 const str = (v, label) => {
@@ -80,7 +76,6 @@ const date = (v) => {
   const iso = v.replace(/\//g, '-');
   const [y, m, d] = iso.split('-').map(Number);
   const asDate = new Date(Date.UTC(y, m - 1, d));
-  // catches impossible dates like 2026-13-01 or 2026-02-31
   if (asDate.getUTCFullYear() !== y || asDate.getUTCMonth() !== m - 1 || asDate.getUTCDate() !== d) {
     fail(400, 'التاريخ غير صحيح');
   }
@@ -88,7 +83,6 @@ const date = (v) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
-// ---------- app ----------
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
@@ -96,7 +90,6 @@ app.use(express.json({ limit: '50kb' }));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
-// ---------- auth ----------
 const TABLE = { main: 'maarid.main_users', sub: 'maarid.sub_users' };
 const role = (v) => (v === 'main' || v === 'sub' ? v : fail(400, 'نوع المستخدم غير صحيح'));
 const sign = (user) => jwt.sign(user, JWT_SECRET, { expiresIn: '30d' });
@@ -104,7 +97,6 @@ const sign = (user) => jwt.sign(user, JWT_SECRET, { expiresIn: '30d' });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
   message: { error: 'محاولات كثيرة، حاول لاحقا' } });
 
-// anyone may create an admin account; each admin gets its own stores
 app.get('/auth/config', (req, res) => res.json({ mainSignup: true }));
 
 app.post('/auth/login', authLimiter, async (req, res) => {
@@ -119,7 +111,6 @@ app.post('/auth/login', authLimiter, async (req, res) => {
     [username, password]
   );
   if (!u) {
-    // right account, wrong door: say which login screen to use
     const other = r === 'main' ? 'sub' : 'main';
     const elsewhere = await one(
       `select 1 from ${TABLE[other]} where username = $1 and password_hash = crypt($2, password_hash)`,
@@ -146,7 +137,6 @@ app.post('/auth/register', authLimiter, async (req, res) => {
       );
       user = { role: 'main', id: u.id, username: u.username, name: u.username, mainId: u.id };
     } else {
-      // a new store belongs to the admin from env
       const mainName = latinDigits(ADMIN_USERNAME.trim());
       const u = await one(
         `insert into maarid.sub_users(main_id, username, password_hash)
@@ -164,7 +154,6 @@ app.post('/auth/register', authLimiter, async (req, res) => {
   res.json({ token: sign(user), user });
 });
 
-// everything below needs a valid token
 app.use((req, res, next) => {
   const token = (req.headers.authorization || '').replace(/^Bearer /, '');
   try {
@@ -179,7 +168,6 @@ app.use((req, res, next) => {
 const mainOnly = (req, res, next) => (req.user.role === 'main' ? next() : res.status(403).json({ error: 'غير مسموح' }));
 const subOnly = (req, res, next) => (req.user.role === 'sub' ? next() : res.status(403).json({ error: 'غير مسموح' }));
 
-// The showroom the caller may read: a sub user only sees itself; a main user may pick one of its own.
 async function showroomOf(req, requested) {
   if (req.user.role === 'sub') return req.user.id;
   const subId = optId(requested);
@@ -194,11 +182,8 @@ async function requireShowroom(req, requested) {
   return subId;
 }
 
-// ---------- day numbers: sales, cost, profit ----------
-// The purchase cost of a sale: what was saved with it, or the product's price when that was never set.
 const SALE_COST = 'coalesce(nullif(s.cost, 0), p.cost)';
 
-// cost = purchase cost of the goods sold + expenses; profit = sales - cost
 const withProfit = (r) => {
   const sales = Number(r.sales);
   const goodsCost = Number(r.goods_cost);
@@ -206,7 +191,6 @@ const withProfit = (r) => {
   return { ...r, sales, goods_cost: goodsCost, expenses, cost: goodsCost + expenses, profit: sales - goodsCost - expenses };
 };
 
-// One day (?day=) or a period (?from=&to=); the phone sends its own local dates.
 const rangeOf = (req) => {
   const from = req.query.from ? date(req.query.from) : req.query.day ? date(req.query.day) : today();
   const to = req.query.to ? date(req.query.to) : from;
@@ -239,7 +223,6 @@ app.get('/stats', async (req, res) => {
       [subId, from, to]
     )));
   }
-  // admin: every store plus the admin's own expenses
   res.json(withProfit(await one(
     `select
        (select coalesce(sum(s.qty*s.price),0) from maarid.sales s join maarid.sub_users u on u.id=s.sub_id
@@ -274,7 +257,6 @@ app.get('/stats', async (req, res) => {
   )));
 });
 
-// Daily report for the admin: totals plus one row per store.
 app.get('/report', mainOnly, async (req, res) => {
   const [from, to] = rangeOf(req);
   const stores = await sql(
@@ -303,14 +285,12 @@ app.get('/report', mainOnly, async (req, res) => {
   });
 });
 
-// ---------- showrooms (stores) ----------
 app.get('/showrooms', mainOnly, async (req, res) => {
   res.json(await sql(
     'select id, username, coalesce(name, username) as name from maarid.sub_users where main_id=$1 order by id',
     [req.user.id]
   ));
 });
-// the admin opens a new store with its own login
 app.post('/showrooms', mainOnly, async (req, res) => {
   const password = cred(req.body.password, 'كلمة السر');
   if (password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
@@ -325,7 +305,6 @@ app.post('/showrooms', mainOnly, async (req, res) => {
   }
   res.json({ ok: true });
 });
-// rename a store, change its login name, or reset its password (empty password = keep it)
 app.put('/showrooms/:id', mainOnly, async (req, res) => {
   const password = typeof req.body.password === 'string' ? latinDigits(req.body.password.trim()) : '';
   if (password && password.length < 4) fail(400, 'كلمة السر قصيرة (4 احرف على الاقل)');
@@ -348,8 +327,6 @@ app.delete('/showrooms/:id', mainOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- products ----------
-// price = selling price, cost = purchase price (used for profit)
 app.get('/products', mainOnly, async (req, res) => {
   res.json(await sql('select id, name, price, cost from maarid.products where main_id=$1 order by name', [req.user.id]));
 });
@@ -372,8 +349,6 @@ app.delete('/products/:id', mainOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- stock ----------
-// warehouse = stock added - goods sent to showrooms
 app.get('/stock/main', mainOnly, async (req, res) => {
   res.json(await sql(
     `select p.id, p.name, coalesce(i.q,0) - coalesce(t.q,0) qty
@@ -385,17 +360,14 @@ app.get('/stock/main', mainOnly, async (req, res) => {
   ));
 });
 
-// warehouse = stock added (and corrections) - goods sent to stores
 const WAREHOUSE_QTY = `(select coalesce(sum(qty),0) from maarid.stock_in where product_id=$2::int)
   - (select coalesce(sum(qty),0) from maarid.transfers where product_id=$2::int)`;
-// store = goods received + quantities added/corrected in the store - goods sold
 const storeQty = (saleIdParam) => `(select coalesce(sum(qty),0) from maarid.transfers where sub_id=$1::int and product_id=$2::int)
   + (select coalesce(sum(qty),0) from maarid.store_adjust where sub_id=$1::int and product_id=$2::int)
   - (select coalesce(sum(qty),0) from maarid.sales where sub_id=$1::int and product_id=$2::int${
     saleIdParam ? ` and id <> ${saleIdParam}::int` : ''
   })`;
 
-// total storage: warehouse + all stores, per product
 app.get('/stock/total', mainOnly, async (req, res) => {
   res.json(await sql(
     `select p.id, p.name,
@@ -426,8 +398,6 @@ app.get('/stock/showroom', async (req, res) => {
   ));
 });
 
-// ---- add / edit quantities ----
-// "add" adds to what is there; "set" makes the quantity exactly the number given (saved as a correction)
 const newQty = (v) => {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0 || n > 1e10) fail(400, 'الكمية غير صحيحة');
@@ -445,7 +415,6 @@ app.post('/stock/in', mainOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-// warehouse: set the exact quantity
 app.post('/stock/main/set', mainOnly, async (req, res) => {
   const row = await one(
     `insert into maarid.stock_in(main_id, product_id, qty, day, kind)
@@ -458,7 +427,6 @@ app.post('/stock/main/set', mainOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-// a store's own stock: add to it, or set the exact quantity (the store itself, or the admin for its stores)
 const ownProduct = `exists (select 1 from maarid.products where id=$2::int and main_id=$5::int)`;
 
 app.post('/stock/showroom/add', async (req, res) => {
@@ -513,7 +481,6 @@ app.get('/transfers', mainOnly, async (req, res) => {
   ));
 });
 
-// ---------- sales ----------
 app.get('/sales', async (req, res) => {
   const subId = await showroomOf(req, req.query.subId);
   const [where, owner] = subId ? ['s.sub_id = $1', subId] : ['u.main_id = $1', req.user.id];
@@ -529,13 +496,10 @@ app.get('/sales', async (req, res) => {
   ));
 });
 
-// available in the store (not counting the sale being edited) must cover the quantity sold
 const STOCK_OK = `${storeQty('$6')} >= $3::numeric`;
 
-// the product's purchase price, saved on the sale so later price changes don't rewrite past profit
 const PRODUCT_COST = '(select cost from maarid.products where id=$2::int)';
 
-// A store writes its own sales; the admin writes a store's sales by passing that store's subId.
 const saleParams = (subId, req, saleId) => [
   subId, id(req.body.productId), positive(req.body.qty, 'الكمية'), nonNegative(req.body.price, 'السعر'),
   date(req.body.day), saleId,
@@ -572,11 +536,8 @@ app.delete('/sales/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- expenses ----------
-// A sub user owns its showroom's expenses; a main user owns its own and can read a showroom's (?subId=).
 app.get('/expenses', async (req, res) => {
   const subId = await showroomOf(req, req.query.subId);
-  // one store's expenses, or — for the admin — its own plus those of all its stores
   const where = subId ? 'e.sub_id = $1' : '(e.main_id = $1 or u.main_id = $1)';
   res.json(await sql(
     `select e.id, e.name, e.amount, coalesce(u.name, u.username, '') store,
@@ -586,14 +547,12 @@ app.get('/expenses', async (req, res) => {
     [subId || req.user.id, date(req.query.from), date(req.query.to)]
   ));
 });
-// Expenses the caller may change: a store its own; the admin its own and those of its stores.
 const editableExpense = (req) =>
   req.user.role === 'sub'
     ? 'sub_id = $U::int'
     : '(main_id = $U::int or sub_id in (select id from maarid.sub_users where main_id = $U::int))';
 
 app.post('/expenses', async (req, res) => {
-  // a store adds its own; the admin adds its own, or a store's when subId is given
   const subId = await showroomOf(req, req.body.subId);
   await sql('insert into maarid.expenses(main_id, sub_id, name, amount, day) values ($1,$2,$3,$4,$5)', [
     subId ? null : req.user.id, subId,
@@ -616,7 +575,6 @@ app.delete('/expenses/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- cash box ----------
 app.get('/cash', async (req, res) => {
   const subId = await requireShowroom(req, req.query.subId);
   res.json(await sql(
@@ -625,9 +583,7 @@ app.get('/cash', async (req, res) => {
     [subId]
   ));
 });
-// A store writes its own cash moves; the admin writes those of its stores.
 const cashKind = (v) => (v === 'pay' || v === 'return' ? v : fail(400, 'نوع العملية غير صحيح'));
-// rows the caller may change; `p` is the placeholder holding the caller's id
 const ownedStore = (req, p) => (req.user.role === 'sub' ? `id = ${p}::int` : `main_id = ${p}::int`);
 
 const noteOf = (v) => (typeof v === 'string' && v.trim() ? str(v, 'اسم العملية') : null);
@@ -657,7 +613,6 @@ app.delete('/cash/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- errors ----------
 app.use((req, res) => res.status(404).json({ error: 'غير موجود' }));
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -668,13 +623,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطأ في الخادم' });
 });
 
-// Startup queries retry, so a brief network drop doesn't crash the server.
 async function startupSql(text, params) {
   for (let attempt = 1; ; attempt++) {
     try {
       return await sql(text, params);
     } catch (e) {
-      if (attempt >= 5 || e.code) throw e; // SQL errors (with a code) are real problems
+      if (attempt >= 5 || e.code) throw e;
       console.error(`database not reachable, retrying (${attempt})`);
       await new Promise((r) => setTimeout(r, 2000 * attempt));
     }
@@ -683,7 +637,6 @@ async function startupSql(text, params) {
 
 for (const stmt of SCHEMA) await startupSql(stmt);
 
-// The admin main user always matches ADMIN_USERNAME / ADMIN_PASSWORD from the environment.
 await startupSql(
   `insert into maarid.main_users(username, password_hash) values ($1, crypt($2, gen_salt('bf')))
    on conflict (username) do update set password_hash = crypt($2, gen_salt('bf'))

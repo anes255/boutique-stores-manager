@@ -1,4 +1,3 @@
-// Idempotent schema, applied on every server start.
 export const SCHEMA = [
   `create extension if not exists pgcrypto`,
   `create schema if not exists maarid`,
@@ -10,17 +9,12 @@ export const SCHEMA = [
   `create table if not exists maarid.sales(id serial primary key, sub_id int not null references maarid.sub_users(id) on delete cascade, product_id int not null references maarid.products(id) on delete restrict, qty numeric(14,2) not null, price numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
   `create table if not exists maarid.expenses(id serial primary key, main_id int references maarid.main_users(id) on delete cascade, sub_id int references maarid.sub_users(id) on delete cascade, name text not null, amount numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
   `create table if not exists maarid.cash_moves(id serial primary key, sub_id int not null references maarid.sub_users(id) on delete cascade, kind text not null check (kind in ('pay','return')), amount numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
-  // a name for each cash-box entry
   `alter table maarid.cash_moves add column if not exists note text`,
   `create index if not exists sales_sub_day on maarid.sales(sub_id, day)`,
   `create index if not exists exp_day on maarid.expenses(main_id, sub_id, day)`,
-  // store display name (the admin names each store it opens)
   `alter table maarid.sub_users add column if not exists name text`,
-  // purchase price per product, and the purchase price saved on each sale, for profit
   `alter table maarid.products add column if not exists cost numeric(14,2) not null default 0`,
   `alter table maarid.sales add column if not exists cost numeric(14,2) not null default 0`,
-  // 'in' = stock added, 'adjust' = correction from editing the warehouse quantity
   `alter table maarid.stock_in add column if not exists kind text not null default 'in'`,
-  // quantities added or corrected directly in a store's stock (a correction can be negative)
   `create table if not exists maarid.store_adjust(id serial primary key, sub_id int not null references maarid.sub_users(id) on delete cascade, product_id int not null references maarid.products(id) on delete restrict, qty numeric(14,2) not null, day date not null default current_date, created_at timestamptz default now())`,
 ];
