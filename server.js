@@ -97,7 +97,17 @@ const sign = (user) => jwt.sign(user, JWT_SECRET, { expiresIn: '30d' });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false,
   message: { error: 'محاولات كثيرة، حاول لاحقا' } });
 
+const SIGNUP_PIN = process.env.ADMIN_SIGNUP_PIN || '9113';
+const checkPin = (v) => {
+  if (latinDigits(String(v == null ? '' : v).trim()) !== SIGNUP_PIN) fail(403, 'الرمز غير صحيح');
+};
+
 app.get('/auth/config', (req, res) => res.json({ mainSignup: true }));
+
+app.post('/auth/signup-pin', authLimiter, (req, res) => {
+  checkPin(req.body.pin);
+  res.json({ ok: true });
+});
 
 app.post('/auth/login', authLimiter, async (req, res) => {
   const r = role(req.body.role);
@@ -131,6 +141,7 @@ app.post('/auth/register', authLimiter, async (req, res) => {
   let user;
   try {
     if (r === 'main') {
+      checkPin(req.body.pin);
       const u = await one(
         `insert into maarid.main_users(username, password_hash) values ($1, crypt($2, gen_salt('bf'))) returning id, username`,
         [username, password]
